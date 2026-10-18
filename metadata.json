@@ -1,0 +1,6 @@
+{
+  "name": "Jordan Salary Calculator & Payroll System",
+  "description": "Multi-company payroll system for Jordan with automatic Social Security, Income Tax, loan management, monthly inputs, employee clearance settlements, payslips, and ISTD reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
