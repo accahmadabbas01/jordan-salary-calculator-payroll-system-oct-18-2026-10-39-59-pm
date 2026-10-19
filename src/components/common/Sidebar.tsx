@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   ScrollText,
   Baby,
+  MessagesSquare,
 } from 'lucide-react';
 
 export type ScreenId =
@@ -28,6 +29,7 @@ export type ScreenId =
   | 'payslips'
   | 'clearances'
   | 'maternity'
+  | 'team_notes'
   | 'reports'
   | 'company_settings'
   | 'users'
@@ -60,6 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'clearances', labelEn: 'Clearances', labelAr: 'براءة الذمة', icon: UserMinus },
     { id: 'maternity', labelEn: 'Maternity Leave', labelAr: 'إجازة الأمومة', icon: Baby },
     { id: 'reports', labelEn: 'Reports', labelAr: 'التقارير', icon: BarChart3 },
+    { id: 'team_notes', labelEn: 'Team Notes', labelAr: 'ملاحظات الفريق', icon: MessagesSquare },
     { id: 'company_settings', labelEn: 'Company Settings', labelAr: 'إعدادات الشركة', icon: Settings },
   ];
 

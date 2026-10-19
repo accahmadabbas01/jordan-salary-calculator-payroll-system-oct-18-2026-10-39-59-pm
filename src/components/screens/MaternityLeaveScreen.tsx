@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { CommentsButton } from '../common/Comments';
 import { Company, Employee, MaternityLeave, SalaryRecord, UserRole } from '../../types';
 import { formatCurrency, getMonthName, getRuleSetForPeriod } from '../../utils/calculator';
 import {
@@ -242,9 +243,19 @@ export const MaternityLeaveScreen: React.FC<MaternityLeaveScreenProps> = ({
               </div>
 
               <div className="bg-white dark:bg-slate-900 p-5 rounded-lg border border-slate-200 dark:border-slate-800 space-y-3">
-                <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">
-                  {selected.emp.name} — maternity allowance (SSC)
-                </h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                    {selected.emp.name} — maternity allowance (SSC)
+                  </h3>
+                  <CommentsButton
+                    entity={{
+                      type: 'maternity',
+                      id: selected.leave.id,
+                      label: `Maternity leave — ${selected.emp.name} from ${selected.leave.startDate}`,
+                      empId: selected.emp.empId,
+                    }}
+                  />
+                </div>
                 <table className="w-full">
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {[

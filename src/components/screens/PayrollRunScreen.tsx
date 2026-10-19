@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { CommentsButton } from '../common/Comments';
 import { SmartImportModal } from '../common/SmartImportModal';
 import { maternityDeductionFor } from '../../utils/maternity';
 import {
@@ -378,6 +379,16 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
               Generate and process payroll records for one month or across a chronological range of months.
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <CommentsButton
+            entity={{
+              type: 'payroll_month',
+              id: `${company.id}_${fromYear}_${fromMonth}`,
+              label: `Payroll run — ${getMonthName(fromMonth)} ${fromYear}`,
+              year: fromYear,
+              month: fromMonth,
+            }}
+          />
           {onSaveInputs && userRole !== 'viewer' && (
           <button
             type="button"
@@ -389,6 +400,7 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
             <span>Smart Import (sheet / email)</span>
           </button>
           )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">

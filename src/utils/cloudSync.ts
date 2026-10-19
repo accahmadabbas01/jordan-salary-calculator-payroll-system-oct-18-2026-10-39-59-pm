@@ -20,6 +20,7 @@ export interface DatabaseSnapshot {
   clearances: any[];
   users: any[];
   ruleSets?: any[];
+  comments?: any[];
   savedAt: string;
 }
 

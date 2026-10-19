@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CommentsButton } from '../common/Comments';
 import { employeeCoverage, SSC_COVERAGE_LABELS } from '../../utils/ssc';
 import { Company, Employee, Loan, RecurringAllowance, RecurringDeduction, UserRole, SscCoverage, SscYouthReduction } from '../../types';
 import {
@@ -361,6 +362,15 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         <div className="flex items-center justify-center gap-1.5">
+                          <CommentsButton
+                            compact
+                            entity={{
+                              type: 'employee',
+                              id: emp.id,
+                              label: `Employee ${emp.empId} — ${emp.name}`,
+                              empId: emp.empId,
+                            }}
+                          />
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(emp)}

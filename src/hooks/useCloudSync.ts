@@ -11,10 +11,13 @@ import {
   setLocalVersion,
   setSyncKey,
 } from '../utils/cloudSync';
+import { threeWayMerge } from '../utils/syncMerge';
 
 type SnapshotData = Omit<DatabaseSnapshot, 'savedAt'>;
 
 const AUTOSAVE_DELAY_MS = 1500;
+// How often an open tab checks the cloud for teammates' changes
+const POLL_INTERVAL_MS = 45000;
 
 /** Replaces the local IndexedDB contents with a cloud snapshot. */
 async function applySnapshotToDB(s: DatabaseSnapshot) {
@@ -27,6 +30,7 @@ async function applySnapshotToDB(s: DatabaseSnapshot) {
     ['clearances', s.clearances],
     ['users', s.users],
     ['rule_sets', s.ruleSets],
+    ['comments', s.comments],
   ];
   for (const [store, items] of stores) {
     if (!items) continue;
@@ -43,7 +47,8 @@ function localHasData(data: SnapshotData) {
  * Keeps IndexedDB mirrored to /api/db.
  * - `initialPull()` runs before the app reads IndexedDB, so a new device starts from cloud data.
  * - Every change to `data` is uploaded after a short debounce.
- * - If another device saved in the meantime, status becomes 'conflict' and nothing is overwritten.
+ * - If another device saved in the meantime, both sides' changes are merged record by record;
+ *   only when the same record was changed differently on both sides does status become 'conflict'.
  */
 export function useCloudSync(options: {
   ready: boolean;
@@ -62,6 +67,8 @@ export function useCloudSync(options: {
   const lastSyncedJson = useRef<string | null>(null);
   const pushing = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onRemoteAppliedRef = useRef(onRemoteApplied);
+  onRemoteAppliedRef.current = onRemoteApplied;
 
   const fail = (s: CloudStatus, msg?: string) => {
     setStatus(s);
@@ -79,6 +86,33 @@ export function useCloudSync(options: {
     );
   };
 
+  /**
+   * Another device saved since our last sync: merge its changes with ours and upload the result.
+   * Needs a baseline (what we last synced), so it never runs before data has loaded.
+   */
+  const tryMerge = async (): Promise<boolean> => {
+    const baseJson = lastSyncedJson.current;
+    if (!baseJson) return false;
+    const remote = await pullSnapshot();
+    if (remote.status !== 'ok' || !remote.snapshot || !remote.version) return false;
+    const { merged, conflicts } = threeWayMerge(JSON.parse(baseJson), dataRef.current, remote.snapshot);
+    if (!merged) {
+      setMessage(`Both you and another user changed the same item (${conflicts.slice(0, 3).join(', ')}). Choose which copy to keep.`);
+      return false;
+    }
+    await applySnapshotToDB({ ...merged, savedAt: '' });
+    const res = await pushSnapshot(merged, remote.version);
+    if (res.status !== 'ok') return false;
+    setLocalVersion(res.version);
+    setDirty(false);
+    lastSyncedJson.current = null; // re-baseline after the app reloads the merged data
+    setLastSyncedAt(new Date());
+    setStatus('synced');
+    setMessage('Merged changes from another user.');
+    await onRemoteAppliedRef.current();
+    return true;
+  };
+
   const push = useCallback(async (force = false): Promise<void> => {
     if (pushing.current) return;
     pushing.current = true;
@@ -87,6 +121,7 @@ export function useCloudSync(options: {
     const json = JSON.stringify(snapshot);
     try {
       const res = await pushSnapshot(snapshot, getLocalVersion(), force);
+      if (res.status === 'conflict' && !force && (await tryMerge())) return;
       if (res.status !== 'ok') {
         fail(res.status, 'message' in res ? res.message : undefined);
         return;
@@ -114,8 +149,8 @@ export function useCloudSync(options: {
    * Compares the cloud with this device and applies or uploads as needed.
    * Returns true when cloud data was written into IndexedDB.
    */
-  const reconcile = useCallback(async (): Promise<boolean> => {
-    setStatus('syncing');
+  const reconcile = useCallback(async (quiet = false): Promise<boolean> => {
+    if (!quiet) setStatus('syncing');
     const localVersion = getLocalVersion();
     const res = await pullSnapshot(localVersion);
     if (res.status !== 'ok') {
@@ -125,6 +160,7 @@ export function useCloudSync(options: {
     if (res.snapshot && res.version) {
       // Never silently replace local work: unsynced edits, or a device used before it ever synced.
       if (isDirty() || (localVersion === '' && (await hasUsers()))) {
+        if (isDirty() && (await tryMerge())) return false; // merged and reloaded already
         fail('conflict');
         return false;
       }
@@ -182,13 +218,15 @@ export function useCloudSync(options: {
         push();
         return;
       }
-      if (await reconcile()) await onRemoteApplied();
+      if (await reconcile(true)) await onRemoteApplied();
     };
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('online', refresh);
+    const poll = setInterval(refresh, POLL_INTERVAL_MS);
     return () => {
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('online', refresh);
+      clearInterval(poll);
     };
   }, [ready, push, reconcile, onRemoteApplied]);
 
