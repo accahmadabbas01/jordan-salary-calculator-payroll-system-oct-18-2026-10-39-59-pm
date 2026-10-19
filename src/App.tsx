@@ -33,6 +33,7 @@ import {
   seedSampleCompanies,
 } from './db/indexedDB';
 import { verifyPassword } from './utils/crypto';
+import { setActiveRuleSets } from './utils/calculator';
 import { TopBar } from './components/common/TopBar';
 import { Sidebar, ScreenId } from './components/common/Sidebar';
 import { InitialAdminSetup, SignInScreen, ChangePasswordModal } from './components/auth/AuthViews';
@@ -523,10 +524,21 @@ export default function App() {
       }
       return [...prev, clearance];
     });
+    // Editing a completed clearance keeps the employee's last working day in sync.
+    if (clearance.status === 'completed') {
+      const emp = employees.find(
+        (e) => e.companyId === clearance.companyId && e.empId === clearance.empId
+      );
+      if (emp && emp.endDate !== clearance.lastDay) {
+        const updatedEmp: Employee = { ...emp, status: 'resigned', endDate: clearance.lastDay };
+        await putInStore('employees', updatedEmp);
+        setEmployees((prev) => prev.map((e) => (e.id === emp.id ? updatedEmp : e)));
+      }
+    }
     if (currentUser) {
       await logActivity(
         currentUser.username,
-        'Save Clearance Draft',
+        clearance.status === 'completed' ? 'Edit Clearance' : 'Save Clearance Draft',
         `Clearance draft for ${clearance.empId}`,
         clearance.companyId
       );
@@ -645,10 +657,30 @@ export default function App() {
     }
   };
 
-  // Delete Clearance Draft
+  // Delete Clearance (a completed one is first reverted: employee active again, loans reopened)
   const handleDeleteClearance = async (clearanceId: string) => {
+    const clearance = clearances.find((c) => c.id === clearanceId);
+    if (clearance?.status === 'completed') {
+      await handleReopenClearance(clearanceId);
+      const emp = employees.find(
+        (e) => e.companyId === clearance.companyId && e.empId === clearance.empId
+      );
+      if (emp && emp.endDate === clearance.lastDay) {
+        const restored: Employee = { ...emp, status: 'active', endDate: undefined };
+        await putInStore('employees', restored);
+        setEmployees((prev) => prev.map((e) => (e.id === emp.id ? restored : e)));
+      }
+    }
     await deleteFromStore('clearances', clearanceId);
     setClearances((prev) => prev.filter((c) => c.id !== clearanceId));
+    if (currentUser && clearance) {
+      await logActivity(
+        currentUser.username,
+        'Delete Clearance',
+        `Deleted ${clearance.status} clearance for ${clearance.empId}`,
+        clearance.companyId
+      );
+    }
   };
 
   // Create New Company
@@ -1121,6 +1153,7 @@ export default function App() {
                 company={currentCompany}
                 employees={currentCompanyEmployees}
                 records={currentCompanyRecords}
+                clearances={currentCompanyClearances}
                 year={year}
                 month={month}
               />
@@ -1141,6 +1174,7 @@ export default function App() {
                 getFullDataForBackup={getFullDataForBackup}
                 onUpdateRuleSets={(rules) => {
                   setRuleSets(rules);
+                  setActiveRuleSets(rules);
                   for (const r of rules) {
                     putInStore('rule_sets', r);
                   }

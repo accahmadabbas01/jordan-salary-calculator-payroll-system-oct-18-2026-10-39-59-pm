@@ -74,7 +74,16 @@ export interface Employee {
   postalCode?: string;
   sscNumber?: string;
   sscWage?: number; // insured monthly wage registered at SSC (0/empty = use salary items)
-  sscExempt?: boolean; // not subject to SSC
+  sscExempt?: boolean; // not subject to SSC (kept for older data; same as sscCoverage 'exempt')
+  /** full = all insurances; injury_only = work-injury only (e.g. old-age pensioner past retirement age); exempt = none */
+  sscCoverage?: SscCoverage;
+  /** Insured at SSC before 1 May 2010: the 5,000 JOD legacy wage ceiling applies */
+  sscInsuredBefore2010?: boolean;
+  /** Regulation 45/2024 old-age reduction for first-time insured Jordanians under 30 */
+  sscYouthReduction?: SscYouthReduction;
+  nationality?: 'jordanian' | 'non_jordanian';
+  gender?: 'male' | 'female';
+  birthDate?: string; // yyyy-mm-dd
   claimsFamily?: boolean; // dependants exemption
   extraExemption?: number; // documented expenses exemption (yearly max 5,000)
   package: {
@@ -259,12 +268,38 @@ export interface TaxBracket {
   rate: number;  // 0.05, 0.10, etc.
 }
 
+export type SscCoverage = 'full' | 'injury_only' | 'exempt';
+export type SscYouthReduction = 'none' | 'small' | 'medium';
+
+/** Contribution rate per Social Security insurance branch */
+export interface SscBranchRates {
+  oldAge: number; // old age, disability & death
+  workInjury: number;
+  maternity: number;
+  unemployment: number;
+}
+
 export interface PayrollRuleSet {
   from: string; // yyyy-mm-dd
   name: string;
-  sscRate: number; // 0.075 (7.5% employee share)
-  sscEmployerRate: number; // 0.1425 (14.25% employer share)
-  sscCeiling: number; // 3668 for 2025, 3733 for 2026
+  sscRate: number; // total employee share, e.g. 0.075
+  sscEmployerRate: number; // total employer share, e.g. 0.1425
+  sscCeiling: number; // monthly wage ceiling; 0 = no ceiling
+  /** Per-branch rates (when present they replace sscRate / sscEmployerRate) */
+  sscEmployee?: SscBranchRates;
+  sscEmployer?: SscBranchRates;
+  /** Ceiling for people insured before 1 May 2010 */
+  sscLegacyCeiling?: number;
+  /** National minimum wage — insured wage should not be lower */
+  minimumWage?: number;
+  /** Employer old-age share reduction for under-30 first-time insured (Reg. 45/2024) */
+  sscYouthReduction?: { small: number; medium: number };
+  /** Income tax is not modelled for this period: enter it manually */
+  taxManual?: boolean;
+  /** National contribution on annual taxable income above threshold (from 2019) */
+  nationalContribution?: { threshold: number; rate: number };
+  /** Figures not confirmed against an official source */
+  unverified?: string;
   personalExemption: number; // 9000
   familyExemption: number;   // 9000
   documentedExpensesMax: number; // 5000

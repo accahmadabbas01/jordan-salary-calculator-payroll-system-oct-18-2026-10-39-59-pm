@@ -16,8 +16,7 @@ import {
   parseArabicIndicNumber,
   roundHalfUp,
   isEmployedInMonth,
-  getMonthName,
-} from '../../utils/calculator';
+  getMonthName, getRuleSetForPeriod } from '../../utils/calculator';
 import { SearchableEmployeeSelect } from '../common/SearchableEmployeeSelect';
 import { PayslipDoc } from '../documents/PayslipDoc';
 import { exportHtmlToPdf } from '../../utils/pdf';
@@ -348,6 +347,9 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
       };
     }
   }, [currentEmployee, year, month, amounts, earnings, deductions, autoCalc, claimsFamily, extraExemption]);
+
+  // Before 2010 income tax is not modelled, so it stays editable even with auto-calculation on.
+  const taxIsManual = !!getRuleSetForPeriod(year, month)?.taxManual;
 
   // Keep amounts in sync with autoCalc
   useEffect(() => {
@@ -852,13 +854,13 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
               </label>
               <input
                 type="text"
-                readOnly={autoCalc}
+                readOnly={autoCalc && !taxIsManual}
                 value={amounts.income_tax}
                 onChange={(e) =>
                   setAmounts({ ...amounts, income_tax: parseArabicIndicNumber(e.target.value) })
                 }
                 className={`w-full px-3 py-1.5 border rounded-md font-mono ${
-                  autoCalc
+                  autoCalc && !taxIsManual
                     ? 'bg-slate-100 dark:bg-slate-800/80 text-amber-700 dark:text-amber-300 font-semibold border-slate-200 dark:border-slate-700 cursor-not-allowed'
                     : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700'
                 }`}

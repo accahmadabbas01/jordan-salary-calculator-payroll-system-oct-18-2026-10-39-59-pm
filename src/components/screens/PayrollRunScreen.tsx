@@ -14,8 +14,7 @@ import {
   isEmployedInMonth,
   roundHalfUp,
   getMonthName,
-  getRuleSetForPeriod,
-} from '../../utils/calculator';
+  getRuleSetForPeriod, YEAR_OPTIONS } from '../../utils/calculator';
 import { PlayCircle, AlertTriangle, CheckCircle2, RefreshCw, X } from 'lucide-react';
 
 interface PayrollRunScreenProps {
@@ -389,7 +388,7 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
                 onChange={(e) => setFromYear(parseInt(e.target.value, 10))}
                 className="w-1/2 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md font-mono"
               >
-                {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                {YEAR_OPTIONS.map((y) => (
                   <option key={y} value={y}>
                     {y}
                   </option>
@@ -420,7 +419,7 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
                 onChange={(e) => setToYear(parseInt(e.target.value, 10))}
                 className="w-1/2 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md font-mono"
               >
-                {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                {YEAR_OPTIONS.map((y) => (
                   <option key={y} value={y}>
                     {y}
                   </option>

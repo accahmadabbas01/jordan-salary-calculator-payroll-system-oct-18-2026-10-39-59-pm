@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Company,
   Employee,
@@ -22,6 +22,7 @@ import {
   UserMinus,
   Plus,
   Trash2,
+  Pencil,
   CheckCircle2,
   RotateCcw,
   Download,
@@ -72,6 +73,10 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
   );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  // Clearance being edited in the wizard (null = creating a new one)
+  const [editingClearance, setEditingClearance] = useState<Clearance | null>(null);
+  // Set while loading a saved clearance so the employee-change reset does not wipe its values
+  const skipNextResetRef = useRef(false);
 
   // Form State for New / Draft Clearance
   const [empId, setEmpId] = useState(employees[0]?.empId || '');
@@ -96,6 +101,10 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
   // Helper to initialize form when employee or lastDay changes
   useEffect(() => {
     if (!currentEmployee) return;
+    if (skipNextResetRef.current) {
+      skipNextResetRef.current = false;
+      return;
+    }
 
     setHireDate(currentEmployee.hireDate || '');
     const lDay = currentEmployee.endDate || new Date().toISOString().substring(0, 10);
@@ -193,15 +202,83 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
   const activeClearanceEmp = employees.find((e) => e.empId === activeClearance?.empId);
 
   const handleOpenNew = () => {
+    setEditingClearance(null);
     setEmpId(employees[0]?.empId || '');
+    setNotes('');
     setIsModalOpen(true);
+  };
+
+  // Load a saved clearance into the wizard. Amounts that were typed over the calculated
+  // values are restored as manual overrides; everything else recalculates live.
+  const handleOpenEdit = (c: Clearance) => {
+    const emp = employees.find((e) => e.empId === c.empId);
+    if (!emp) {
+      alert('The employee for this clearance no longer exists, so it cannot be edited.');
+      return;
+    }
+    const auto = calculateClearanceAmounts({
+      employee: emp,
+      hireDate: c.hireDate,
+      lastDay: c.lastDay,
+      reason: c.reason,
+      daysWorked: c.daysWorked,
+      leaveDays: c.leaveDays,
+      indemnityMonths: c.indemnityMonths,
+      indemnityBasis: c.indemnityBasis,
+      noticeMonths: c.noticeMonths,
+      deductLoans: c.deductLoans,
+      unsettledLoanBalance: c.deductions.loans,
+      hasExistingMonthRecord: c.daysWorked === 0,
+      customDues: {},
+      customDeductions: { loans: c.deductions.loans },
+    });
+    const diff = (saved: Record<string, number>, calculated: Record<string, number>) => {
+      const out: Record<string, number> = {};
+      for (const k of Object.keys(saved)) {
+        if (Math.abs((saved[k] || 0) - ((calculated as any)[k] || 0)) > 0.004) out[k] = saved[k];
+      }
+      return out;
+    };
+
+    if (c.empId !== empId) skipNextResetRef.current = true;
+    setEditingClearance(c);
+    setEmpId(c.empId);
+    setHireDate(c.hireDate);
+    setLastDay(c.lastDay);
+    setReason(c.reason);
+    setDaysWorked(c.daysWorked);
+    setLeaveDays(c.leaveDays);
+    setIndemnityMonths(c.indemnityMonths);
+    setIndemnityBasis(c.indemnityBasis);
+    setNoticeMonths(c.noticeMonths);
+    setDeductLoans(c.deductLoans);
+    setNotes(c.notes || '');
+    setSignOffs(c.signOffs?.length ? c.signOffs : DEFAULT_SIGN_OFFS);
+    setCustomDues(diff(c.dues as any, auto.dues as any));
+    // A completed clearance already settled the loans, so keep its loan figure fixed.
+    setCustomDeductions({
+      ...diff(c.deductions as any, auto.deductions as any),
+      ...(c.status === 'completed' ? { loans: c.deductions.loans } : {}),
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (c: Clearance) => {
+    const msg =
+      c.status === 'completed'
+        ? `Delete the completed clearance for ${c.empId}?\n\nThe employee will be set back to Active and any loans this clearance settled will be reopened. This cannot be undone.`
+        : `Delete the clearance draft for ${c.empId}?`;
+    if (!confirm(msg)) return;
+    onDeleteClearance(c.id);
+    if (activeClearanceId === c.id) setActiveClearanceId(null);
   };
 
   const handleSaveDraft = () => {
     if (!calc || !currentEmployee) return;
 
     const newClearance: Clearance = {
-      id: `clearance_${company.id}_${empId}`,
+      ...(editingClearance || {}),
+      id: editingClearance?.id || `clearance_${company.id}_${empId}`,
       companyId: company.id,
       empId,
       hireDate,
@@ -221,13 +298,14 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
       totalDeductions: calc.totalDeductions,
       net: calc.net,
       signOffs,
-      status: 'draft',
+      status: editingClearance?.status || 'draft',
       notes,
       serviceLength: calc.service,
     };
 
     onSaveClearance(newClearance);
     setActiveClearanceId(newClearance.id);
+    setEditingClearance(null);
     setIsModalOpen(false);
   };
 
@@ -320,6 +398,33 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
                         Net: {formatCurrency(c.net, company.currency)}
                       </span>
                     </div>
+                    {userRole !== 'viewer' && (
+                      <div className="flex justify-end gap-1 mt-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveClearanceId(c.id);
+                            handleOpenEdit(c);
+                          }}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(c);
+                          }}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -374,29 +479,33 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
 
                   {userRole !== 'viewer' && (
                     <>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(activeClearance)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded font-medium hover:bg-slate-50"
+                        title="Edit this clearance"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(activeClearance)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-rose-600 border border-rose-200 dark:border-rose-900 rounded font-medium hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                        title="Delete this clearance"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
                       {activeClearance.status === 'draft' ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleComplete(activeClearance)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded font-bold hover:bg-emerald-700"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Complete Settlement</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (confirm('Delete this clearance draft?')) {
-                                onDeleteClearance(activeClearance.id);
-                                setActiveClearanceId(null);
-                              }
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          onClick={() => handleComplete(activeClearance)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded font-bold hover:bg-emerald-700"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Complete Settlement</span>
+                        </button>
                       ) : (
                         <button
                           type="button"
@@ -553,13 +662,18 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">
-                  New Clearance & Final Settlement
+                  {editingClearance
+                    ? `Edit Clearance — ${editingClearance.empId}${editingClearance.status === 'completed' ? ' (completed)' : ''}`
+                    : 'New Clearance & Final Settlement'}
                 </h3>
                 <p className="text-slate-500">Calculate severance, dues, and deductions</p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingClearance(null);
+                }}
                 className="text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />
@@ -826,7 +940,10 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
             <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingClearance(null);
+                }}
                 className="px-4 py-1.5 bg-white dark:bg-slate-800 border rounded font-medium text-slate-700 dark:text-slate-300"
               >
                 Cancel
@@ -836,7 +953,7 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
                 onClick={handleSaveDraft}
                 className="px-5 py-1.5 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded font-bold hover:bg-slate-800"
               >
-                Save Clearance Draft
+                {editingClearance ? 'Save Changes' : 'Save Clearance Draft'}
               </button>
             </div>
           </div>

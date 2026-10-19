@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Company, Employee, Loan, RecurringAllowance, RecurringDeduction, UserRole } from '../../types';
+import { employeeCoverage, SSC_COVERAGE_LABELS } from '../../utils/ssc';
+import { Company, Employee, Loan, RecurringAllowance, RecurringDeduction, UserRole, SscCoverage, SscYouthReduction } from '../../types';
 import {
   formatCurrency,
   calculatePayroll,
@@ -348,8 +349,10 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                         {formatCurrency(emp.package?.basic || 0, '')}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono text-slate-600 dark:text-slate-400 tabular-nums">
-                        {emp.sscExempt ? (
+                        {employeeCoverage(emp) === 'exempt' ? (
                           <span className="text-[11px] text-indigo-600 font-sans">Exempt</span>
+                        ) : employeeCoverage(emp) === 'injury_only' ? (
+                          <span className="text-[11px] text-amber-600 font-sans">Work injury only</span>
                         ) : emp.sscWage && emp.sscWage > 0 ? (
                           formatCurrency(emp.sscWage, '')
                         ) : (
@@ -785,22 +788,114 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                         </label>
                       </div>
 
-                      <div className="flex items-center gap-2 pt-2">
-                        <input
-                          type="checkbox"
-                          id="chk-sscExempt"
-                          checked={!!editingEmployee.sscExempt}
-                          onChange={(e) =>
-                            setEditingEmployee({
-                              ...editingEmployee,
-                              sscExempt: e.target.checked,
-                            })
-                          }
-                          className="w-4 h-4 text-slate-900 rounded border-slate-300"
-                        />
-                        <label htmlFor="chk-sscExempt" className="text-slate-700 dark:text-slate-300 font-medium">
-                          Not subject to Social Security (SSC Exempt)
-                        </label>
+                      {/* Social Security rules */}
+                      <div className="md:col-span-2 pt-3 mt-1 border-t border-slate-200 dark:border-slate-800">
+                        <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                          Social Security (الضمان الاجتماعي)
+                        </h5>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">SSC Coverage</label>
+                            <select
+                              value={employeeCoverage(editingEmployee)}
+                              onChange={(e) => {
+                                const coverage = e.target.value as SscCoverage;
+                                setEditingEmployee({
+                                  ...editingEmployee,
+                                  sscCoverage: coverage,
+                                  sscExempt: coverage === 'exempt',
+                                });
+                              }}
+                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
+                            >
+                              {(Object.keys(SSC_COVERAGE_LABELS) as SscCoverage[]).map((k) => (
+                                <option key={k} value={k}>
+                                  {SSC_COVERAGE_LABELS[k]}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">Youth old-age reduction (Reg. 45/2024)</label>
+                            <select
+                              value={editingEmployee.sscYouthReduction || 'none'}
+                              onChange={(e) =>
+                                setEditingEmployee({
+                                  ...editingEmployee,
+                                  sscYouthReduction: e.target.value as SscYouthReduction,
+                                })
+                              }
+                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
+                            >
+                              <option value="none">None</option>
+                              <option value="small">Small establishment (≤25 staff) — 40%</option>
+                              <option value="medium">Medium establishment (26–50 staff) — 30%</option>
+                            </select>
+                            <span className="text-[10px] text-slate-400">
+                              Jordanian, under 30, insured for the first time
+                            </span>
+                          </div>
+                          <div>
+                            <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">Nationality</label>
+                            <select
+                              value={editingEmployee.nationality || 'jordanian'}
+                              onChange={(e) =>
+                                setEditingEmployee({
+                                  ...editingEmployee,
+                                  nationality: e.target.value as Employee['nationality'],
+                                })
+                              }
+                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
+                            >
+                              <option value="jordanian">Jordanian</option>
+                              <option value="non_jordanian">Non-Jordanian</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">Date of birth</label>
+                            <input
+                              type="date"
+                              min="1900-01-01"
+                              max="2100-12-31"
+                              value={editingEmployee.birthDate || ''}
+                              onChange={(e) =>
+                                setEditingEmployee({ ...editingEmployee, birthDate: e.target.value || undefined })
+                              }
+                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">Gender</label>
+                            <select
+                              value={editingEmployee.gender || ''}
+                              onChange={(e) =>
+                                setEditingEmployee({
+                                  ...editingEmployee,
+                                  gender: (e.target.value || undefined) as Employee['gender'],
+                                })
+                              }
+                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
+                            >
+                              <option value="">—</option>
+                              <option value="male">Male (retirement age 60)</option>
+                              <option value="female">Female (retirement age 55)</option>
+                            </select>
+                          </div>
+                          <div className="flex items-start gap-2 pt-5">
+                            <input
+                              type="checkbox"
+                              id="chk-sscBefore2010"
+                              checked={!!editingEmployee.sscInsuredBefore2010}
+                              onChange={(e) =>
+                                setEditingEmployee({ ...editingEmployee, sscInsuredBefore2010: e.target.checked })
+                              }
+                              className="w-4 h-4 mt-0.5 text-slate-900 rounded border-slate-300"
+                            />
+                            <label htmlFor="chk-sscBefore2010" className="text-slate-700 dark:text-slate-300 font-medium">
+                              Insured before 1 May 2010 (5,000 JOD ceiling)
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

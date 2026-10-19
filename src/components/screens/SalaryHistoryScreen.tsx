@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Company, Employee, SalaryRecord } from '../../types';
-import { formatCurrency, getMonthName } from '../../utils/calculator';
+import { formatCurrency, getMonthName, YEAR_OPTIONS } from '../../utils/calculator';
 import { Search, Download, Filter, Eye } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -93,7 +93,7 @@ export const SalaryHistoryScreen: React.FC<SalaryHistoryScreenProps> = ({
               className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md font-mono"
             >
               <option value="all">All Years</option>
-              {[2024, 2025, 2026, 2027, 2028].map((y) => (
+              {YEAR_OPTIONS.map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
