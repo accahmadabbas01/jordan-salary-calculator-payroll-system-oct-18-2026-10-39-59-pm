@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AddFromTypesMenu, TypeSelect, findType } from '../common/ItemTypePicker';
 import { CommentsButton } from '../common/Comments';
 import { employeeCoverage, SSC_COVERAGE_LABELS } from '../../utils/ssc';
 import { Company, Employee, Loan, RecurringAllowance, RecurringDeduction, UserRole, SscCoverage, SscYouthReduction } from '../../types';
@@ -148,39 +149,6 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   };
 
   const livePreview = editingEmployee ? getLivePreview() : null;
-
-  // Add recurring allowance with company type defaults
-  const handleAddAllowance = () => {
-    if (!editingEmployee) return;
-    const firstType = company.allowanceTypes[0];
-    const newAllowance: RecurringAllowance = {
-      name: firstType?.name || 'Mobile Allowance',
-      method: firstType?.method || 'fixed',
-      value: firstType?.value || 30,
-      taxable: firstType ? firstType.taxable : true,
-      ssc: firstType ? firstType.ssc : true,
-    };
-    setEditingEmployee({
-      ...editingEmployee,
-      allowances: [...(editingEmployee.allowances || []), newAllowance],
-    });
-  };
-
-  // Add recurring deduction with company type defaults
-  const handleAddDeduction = () => {
-    if (!editingEmployee) return;
-    const firstType = company.deductionTypes[0];
-    const newDeduction: RecurringDeduction = {
-      name: firstType?.name || 'Health Insurance',
-      method: firstType?.method || 'fixed',
-      value: firstType?.value || 25,
-      preTax: firstType ? firstType.preTax : true,
-    };
-    setEditingEmployee({
-      ...editingEmployee,
-      deductions: [...(editingEmployee.deductions || []), newDeduction],
-    });
-  };
 
   // File upload handler
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1010,14 +978,23 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
                         Recurring Allowances
                       </h4>
-                      <button
-                        type="button"
-                        onClick={handleAddAllowance}
-                        className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add Allowance</span>
-                      </button>
+                      <AddFromTypesMenu
+                        label="Add allowance"
+                        types={company.allowanceTypes}
+                        basic={editingEmployee.package?.basic || 0}
+                        onPick={(t) =>
+                          setEditingEmployee({
+                            ...editingEmployee,
+                            allowances: [...(editingEmployee.allowances || []), { name: t.name, method: t.method, value: t.value, taxable: t.taxable, ssc: t.ssc }],
+                          })
+                        }
+                        onCustom={() =>
+                          setEditingEmployee({
+                            ...editingEmployee,
+                            allowances: [...(editingEmployee.allowances || []), { name: '', method: 'fixed', value: 0, taxable: true, ssc: true }],
+                          })
+                        }
+                      />
                     </div>
 
                     <div className="space-y-2">
@@ -1026,34 +1003,32 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                           key={idx}
                           className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-200 dark:border-slate-700"
                         >
-                          <input
-                            type="text"
-                            list="emp-allowance-types-suggestions"
-                            placeholder="Allowance Name..."
-                            value={allow.name}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const chosen = company.allowanceTypes.find(
-                                (t) => t.name.toLowerCase() === val.toLowerCase()
-                              );
+                          <TypeSelect
+                            types={company.allowanceTypes}
+                            name={findType(company.allowanceTypes, allow.name) ? allow.name : ''}
+                            className="w-36"
+                            onChange={(t) => {
                               const updated = [...editingEmployee.allowances];
-                              updated[idx] = {
-                                ...updated[idx],
-                                name: val,
-                                method: chosen?.method || updated[idx].method,
-                                value: chosen ? chosen.value : updated[idx].value,
-                                taxable: chosen ? chosen.taxable : updated[idx].taxable,
-                                ssc: chosen ? chosen.ssc : updated[idx].ssc,
-                              };
+                              updated[idx] = t
+                                ? { ...updated[idx], name: t.name, method: t.method, value: t.value, taxable: t.taxable, ssc: t.ssc }
+                                : { ...updated[idx], name: '' };
                               setEditingEmployee({ ...editingEmployee, allowances: updated });
                             }}
-                            className="w-1/3 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-medium"
                           />
-                          <datalist id="emp-allowance-types-suggestions">
-                            {company.allowanceTypes.map((t) => (
-                              <option key={t.name} value={t.name} />
-                            ))}
-                          </datalist>
+                          {!findType(company.allowanceTypes, allow.name) && (
+                            <input
+                              type="text"
+                              dir="auto"
+                              placeholder="Custom allowance name"
+                              value={allow.name}
+                              onChange={(e) => {
+                                const updated = [...editingEmployee.allowances];
+                                updated[idx] = { ...updated[idx], name: e.target.value };
+                                setEditingEmployee({ ...editingEmployee, allowances: updated });
+                              }}
+                              className="w-32 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-medium"
+                            />
+                          )}
 
                           <select
                             value={allow.method}
@@ -1126,14 +1101,23 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
                         Recurring Deductions
                       </h4>
-                      <button
-                        type="button"
-                        onClick={handleAddDeduction}
-                        className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add Deduction</span>
-                      </button>
+                      <AddFromTypesMenu
+                        label="Add deduction"
+                        types={company.deductionTypes}
+                        basic={editingEmployee.package?.basic || 0}
+                        onPick={(t) =>
+                          setEditingEmployee({
+                            ...editingEmployee,
+                            deductions: [...(editingEmployee.deductions || []), { name: t.name, method: t.method, value: t.value, preTax: t.preTax }],
+                          })
+                        }
+                        onCustom={() =>
+                          setEditingEmployee({
+                            ...editingEmployee,
+                            deductions: [...(editingEmployee.deductions || []), { name: '', method: 'fixed', value: 0, preTax: false }],
+                          })
+                        }
+                      />
                     </div>
 
                     <div className="space-y-2">
@@ -1142,33 +1126,32 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                           key={idx}
                           className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-200 dark:border-slate-700"
                         >
-                          <input
-                            type="text"
-                            list="emp-deduction-types-suggestions"
-                            placeholder="Deduction Name..."
-                            value={ded.name}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const chosen = company.deductionTypes.find(
-                                (t) => t.name.toLowerCase() === val.toLowerCase()
-                              );
+                          <TypeSelect
+                            types={company.deductionTypes}
+                            name={findType(company.deductionTypes, ded.name) ? ded.name : ''}
+                            className="w-36"
+                            onChange={(t) => {
                               const updated = [...editingEmployee.deductions];
-                              updated[idx] = {
-                                ...updated[idx],
-                                name: val,
-                                method: chosen?.method || updated[idx].method,
-                                value: chosen ? chosen.value : updated[idx].value,
-                                preTax: chosen ? chosen.preTax : updated[idx].preTax,
-                              };
+                              updated[idx] = t
+                                ? { ...updated[idx], name: t.name, method: t.method, value: t.value, preTax: t.preTax }
+                                : { ...updated[idx], name: '' };
                               setEditingEmployee({ ...editingEmployee, deductions: updated });
                             }}
-                            className="w-1/3 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-medium"
                           />
-                          <datalist id="emp-deduction-types-suggestions">
-                            {company.deductionTypes.map((t) => (
-                              <option key={t.name} value={t.name} />
-                            ))}
-                          </datalist>
+                          {!findType(company.deductionTypes, ded.name) && (
+                            <input
+                              type="text"
+                              dir="auto"
+                              placeholder="Custom deduction name"
+                              value={ded.name}
+                              onChange={(e) => {
+                                const updated = [...editingEmployee.deductions];
+                                updated[idx] = { ...updated[idx], name: e.target.value };
+                                setEditingEmployee({ ...editingEmployee, deductions: updated });
+                              }}
+                              className="w-32 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-medium"
+                            />
+                          )}
 
                           <select
                             value={ded.method}
