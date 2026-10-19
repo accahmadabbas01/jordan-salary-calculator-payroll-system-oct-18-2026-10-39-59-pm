@@ -59,6 +59,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const totalGross = monthRecords.reduce((s, r) => s + r.gross, 0);
   const totalSsc = monthRecords.reduce((s, r) => s + (r.amounts.social_sec || 0), 0);
   const totalTax = monthRecords.reduce((s, r) => s + (r.amounts.income_tax || 0), 0);
+  const totalDed = monthRecords.reduce((s, r) => s + r.totalDed, 0);
   const totalNet = monthRecords.reduce((s, r) => s + r.net, 0);
 
   // 3. Unpaid employees
@@ -141,7 +142,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       )}
 
       {/* KPI Tiles for Selected Month */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
         <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-medium">Active Staff</span>
@@ -195,6 +196,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             {formatCurrency(totalTax, '')}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">Withheld monthly</div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-medium">Total Deductions</span>
+            <span className="text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-mono">
+              Ded.
+            </span>
+          </div>
+          <div className="mt-2 text-lg font-bold text-rose-600 dark:text-rose-400 font-mono tabular-nums">
+            {formatCurrency(totalDed, '')}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1">SSC, tax, loans & other</div>
         </div>
 
         <div className="bg-slate-900 text-white p-4 rounded-lg shadow-2xs">

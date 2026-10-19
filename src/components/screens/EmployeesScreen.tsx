@@ -1221,7 +1221,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                     <div className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-2">
                       Live Calculation for Period: {month}/{year}
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <div>
                         <div className="text-[11px] text-slate-500">Gross Salary</div>
                         <div className="text-base font-bold font-mono text-slate-900 dark:text-slate-100">
@@ -1238,6 +1238,12 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                         <div className="text-[11px] text-slate-500">Income Tax</div>
                         <div className="text-base font-bold font-mono text-amber-600 dark:text-amber-400">
                           {formatCurrency(livePreview.incomeTax, company.currency)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-slate-500">Total Deductions</div>
+                        <div className="text-base font-bold font-mono text-rose-600 dark:text-rose-400">
+                          {formatCurrency(livePreview.totalDed, company.currency)}
                         </div>
                       </div>
                       <div>

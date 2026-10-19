@@ -631,6 +631,7 @@ export function generateAnnualSummarySheet(
     const gross = recs.reduce((s, r) => s + r.gross, 0);
     const ssc = recs.reduce((s, r) => s + (r.amounts.social_sec || 0), 0);
     const tax = recs.reduce((s, r) => s + (r.amounts.income_tax || 0), 0);
+    const ded = recs.reduce((s, r) => s + r.totalDed, 0);
     const net = recs.reduce((s, r) => s + r.net, 0);
 
     return {
@@ -642,6 +643,7 @@ export function generateAnnualSummarySheet(
       'Gross Salary': roundHalfUp(gross, 2),
       'Social Security': roundHalfUp(ssc, 2),
       'Income Tax': roundHalfUp(tax, 2),
+      'Total Deductions': roundHalfUp(ded, 2),
       'Net Salary': roundHalfUp(net, 2),
     };
   });
@@ -650,6 +652,7 @@ export function generateAnnualSummarySheet(
   const totalGross = rows.reduce((s, r) => s + r['Gross Salary'], 0);
   const totalSsc = rows.reduce((s, r) => s + r['Social Security'], 0);
   const totalTax = rows.reduce((s, r) => s + r['Income Tax'], 0);
+  const totalDed = rows.reduce((s, r) => s + r['Total Deductions'], 0);
   const totalNet = rows.reduce((s, r) => s + r['Net Salary'], 0);
 
   rows.push({
@@ -661,6 +664,7 @@ export function generateAnnualSummarySheet(
     'Gross Salary': roundHalfUp(totalGross, 2),
     'Social Security': roundHalfUp(totalSsc, 2),
     'Income Tax': roundHalfUp(totalTax, 2),
+    'Total Deductions': roundHalfUp(totalDed, 2),
     'Net Salary': roundHalfUp(totalNet, 2),
   });
 

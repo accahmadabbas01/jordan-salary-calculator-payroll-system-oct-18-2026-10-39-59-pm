@@ -732,6 +732,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   <th className="px-3 py-2.5 text-right">Gross Salary</th>
                   <th className="px-3 py-2.5 text-right">SSC (7.5%)</th>
                   <th className="px-3 py-2.5 text-right">Income Tax</th>
+                  <th className="px-3 py-2.5 text-right">Total Deductions</th>
                   <th className="px-3 py-2.5 text-right">Net Salary</th>
                 </tr>
               </thead>
@@ -745,6 +746,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   const totGross = empRecords.reduce((sum, r) => sum + r.gross, 0);
                   const totSsc = empRecords.reduce((sum, r) => sum + (r.amounts.social_sec || 0), 0);
                   const totTax = empRecords.reduce((sum, r) => sum + (r.amounts.income_tax || 0), 0);
+                  const totDed = empRecords.reduce((sum, r) => sum + r.totalDed, 0);
                   const totNet = empRecords.reduce((sum, r) => sum + r.net, 0);
 
                   return (
@@ -765,6 +767,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">
                         {formatCurrency(totTax, '')}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums text-rose-600 dark:text-rose-400">
+                        {formatCurrency(totDed, '')}
                       </td>
                       <td className="px-3 py-2 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
                         {formatCurrency(totNet, '')}
