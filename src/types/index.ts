@@ -17,6 +17,14 @@ export interface DeductionType {
   preTax: boolean;  // default false
 }
 
+/** Payslip PDF password settings (per company) */
+export interface PayslipPasswordSettings {
+  enabled: boolean;
+  mode: 'pattern' | 'generated';
+  pattern: string; // e.g. "{ID4}{MM}{YYYY}"
+  secret: string; // for generated passwords
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -27,6 +35,7 @@ export interface Company {
   isSample?: boolean;
   allowanceTypes: AllowanceType[];
   deductionTypes: DeductionType[];
+  payslipPassword?: PayslipPasswordSettings;
 }
 
 export interface RecurringAllowance {

@@ -1264,6 +1264,7 @@ export default function App() {
                 month={month}
                 userRole={currentUser.role}
                 onSendEmailPayslip={handleEmailPayslip}
+                onUpdateCompany={handleUpdateCompany}
               />
             )}
 

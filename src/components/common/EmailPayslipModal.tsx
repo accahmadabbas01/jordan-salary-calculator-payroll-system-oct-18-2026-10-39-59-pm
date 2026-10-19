@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getPayslipPassword } from '../../utils/payslipPassword';
 import { Company, Employee, SalaryRecord } from '../../types';
 import { PayslipDoc } from '../documents/PayslipDoc';
 import { generatePdfBlob } from '../../utils/pdf';
@@ -59,7 +60,7 @@ export const EmailPayslipModal: React.FC<EmailPayslipModalProps> = ({
       }
 
       // Generate PDF blob
-      const pdfBlob = await generatePdfBlob(renderEl);
+      const pdfBlob = await generatePdfBlob(renderEl, { password: (await getPayslipPassword(company, employee, record.year, record.month))?.password });
       const pdfBase64 = await blobToBase64(pdfBlob);
 
       // Create .eml draft
@@ -98,7 +99,7 @@ export const EmailPayslipModal: React.FC<EmailPayslipModalProps> = ({
     try {
       const renderEl = document.getElementById('email-hidden-payslip-render');
       if (renderEl) {
-        const pdfBlob = await generatePdfBlob(renderEl);
+        const pdfBlob = await generatePdfBlob(renderEl, { password: (await getPayslipPassword(company, employee, record.year, record.month))?.password });
         downloadFile(pdfBlob, attachmentFilename);
       }
 

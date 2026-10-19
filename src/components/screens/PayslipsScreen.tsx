@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { Company, Employee, SalaryRecord, UserRole } from '../../types';
 import { PayslipDoc } from '../documents/PayslipDoc';
-import { exportHtmlToPdf, exportMultipleHtmlToPdf, printHtmlElement } from '../../utils/pdf';
+import { exportHtmlToPdf, exportMultipleHtmlToPdf, printHtmlElement, downloadBlob } from '../../utils/pdf';
+import { PayslipPasswordPanel } from '../common/PayslipPasswordPanel';
+import { getPayslipPassword, payslipPasswordSettings } from '../../utils/payslipPassword';
+import JSZip from 'jszip';
+import * as XLSX from 'xlsx';
 import { EmailPayslipModal } from '../common/EmailPayslipModal';
 import { createEmlFile, downloadFile, blobToBase64, buildPayslipEmailBody } from '../../utils/emailDraft';
 import { generatePdfBlob } from '../../utils/pdf';
@@ -27,6 +31,7 @@ interface PayslipsScreenProps {
   month: number;
   userRole?: UserRole;
   onSendEmailPayslip?: (record: SalaryRecord) => Promise<boolean>;
+  onUpdateCompany?: (company: Company) => void;
 }
 
 export const PayslipsScreen: React.FC<PayslipsScreenProps> = ({
@@ -37,7 +42,14 @@ export const PayslipsScreen: React.FC<PayslipsScreenProps> = ({
   month,
   userRole = 'viewer',
   onSendEmailPayslip,
+  onUpdateCompany,
 }) => {
+  const protectedPdfs = payslipPasswordSettings(company).enabled;
+  // Password for one slip, or undefined when protection is off
+  const passwordFor = async (r: SalaryRecord) =>
+    (await getPayslipPassword(company, employees.find((e) => e.empId === r.empId), r.year, r.month))?.password;
+  const slipFileName = (r: SalaryRecord) => `SalarySlip_${r.name.replace(/\s+/g, '_')}_${r.year}_${r.month}.pdf`;
+
   const monthRecords = records.filter(
     (r) => r.companyId === company.id && r.year === year && r.month === month
   );
@@ -82,10 +94,7 @@ export const PayslipsScreen: React.FC<PayslipsScreenProps> = ({
     if (!el || !activeRecord) return;
     setIsExporting(true);
     try {
-      await exportHtmlToPdf(
-        el,
-        `SalarySlip_${activeRecord.name.replace(/\s+/g, '_')}_${year}_${month}.pdf`
-      );
+      await exportHtmlToPdf(el, slipFileName(activeRecord), { password: await passwordFor(activeRecord) });
     } catch (e) {
       alert('Error generating PDF: ' + String(e));
     } finally {
@@ -99,7 +108,7 @@ export const PayslipsScreen: React.FC<PayslipsScreenProps> = ({
     if (!el) return;
     setIsExporting(true);
     try {
-      await exportHtmlToPdf(el, `SalarySlip_${r.name.replace(/\s+/g, '_')}_${r.year}_${r.month}.pdf`);
+      await exportHtmlToPdf(el, slipFileName(r), { password: await passwordFor(r) });
     } catch (e) {
       alert('Error generating PDF: ' + String(e));
     } finally {
@@ -128,6 +137,21 @@ export const PayslipsScreen: React.FC<PayslipsScreenProps> = ({
         if (activeEl) targetEls.push(activeEl);
       }
 
+      if (protectedPdfs) {
+        // One file can only have one password, so each slip gets its own protected PDF.
+        const zip = new JSZip();
+        for (const r of selectedRecs) {
+          const el = document.getElementById(`hidden-payslip-render-${r.empId}`);
+          if (!el) continue;
+          zip.file(slipFileName(r), await generatePdfBlob(el, { password: await passwordFor(r) }));
+        }
+        downloadBlob(
+          await zip.generateAsync({ type: 'blob' }),
+          `Payslips_Protected_${company.name.replace(/\s+/g, '_')}_${year}_${month}.zip`
+        );
+        return;
+      }
+
       await exportMultipleHtmlToPdf(
         targetEls,
         `All_Payslips_${company.name.replace(/\s+/g, '_')}_${year}_${month}.pdf`
@@ -137,6 +161,30 @@ export const PayslipsScreen: React.FC<PayslipsScreenProps> = ({
     } finally {
       setIsExporting(false);
     }
+  };
+
+  // Excel list of this month's passwords for the selected employees (to send separately)
+  const handleDownloadPasswordList = async () => {
+    const rows = [];
+    for (const r of monthRecords.filter((x) => selectedEmpIds.has(x.empId))) {
+      const emp = employees.find((e) => e.empId === r.empId);
+      const pw = await getPayslipPassword(company, emp, r.year, r.month);
+      rows.push({
+        'Employee ID': r.empId,
+        Name: r.name,
+        Email: emp?.email || '',
+        Phone: emp?.phone || '',
+        Month: `${String(r.month).padStart(2, '0')}/${r.year}`,
+        'PDF password': pw?.password || '',
+      });
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Payslip passwords');
+    const bytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    downloadBlob(
+      new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `Payslip_Passwords_${company.name.replace(/\s+/g, '_')}_${year}_${month}.xlsx`
+    );
   };
 
   const handlePrintActive = () => {
@@ -160,7 +208,7 @@ export const PayslipsScreen: React.FC<PayslipsScreenProps> = ({
 
         if (!renderEl || !emp) continue;
 
-        const pdfBlob = await generatePdfBlob(renderEl);
+        const pdfBlob = await generatePdfBlob(renderEl, { password: await passwordFor(r) });
         const pdfBase64 = await blobToBase64(pdfBlob);
         const initialContent = buildPayslipEmailBody(company, emp, r);
         const attachmentFilename = `SalarySlip_${emp.name.replace(/\s+/g, '_')}_${r.year}_${r.month}.pdf`;
@@ -243,7 +291,13 @@ export const PayslipsScreen: React.FC<PayslipsScreenProps> = ({
             title="Download all selected payslips in one single multi-page PDF"
           >
             <FileDown className="w-3.5 h-3.5 text-indigo-500" />
-            <span>{isExporting ? 'Generating PDF...' : `Download Selected as PDF (${selectedEmpIds.size})`}</span>
+            <span>
+              {isExporting
+                ? 'Generating PDF...'
+                : protectedPdfs
+                ? `Download Selected — protected ZIP (${selectedEmpIds.size})`
+                : `Download Selected as PDF (${selectedEmpIds.size})`}
+            </span>
           </button>
 
           <button
@@ -279,6 +333,17 @@ export const PayslipsScreen: React.FC<PayslipsScreenProps> = ({
           </button>
         </div>
       )}
+
+      <PayslipPasswordPanel
+        company={company}
+        previewEmployee={activeEmp}
+        year={year}
+        month={month}
+        canEdit={userRole !== 'viewer' && !!onUpdateCompany}
+        selectedCount={selectedEmpIds.size}
+        onDownloadList={handleDownloadPasswordList}
+        onSave={(settings) => onUpdateCompany?.({ ...company, payslipPassword: settings })}
+      />
 
       {/* Main Split View: Left List & Right Live A4 Preview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
