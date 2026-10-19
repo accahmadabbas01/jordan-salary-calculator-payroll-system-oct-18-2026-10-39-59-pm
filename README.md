@@ -43,3 +43,24 @@ server stops.
 Every screen has an **Excel** button above the content. Download the template (or export the current
 data), edit it in Excel, and import it back. Employees, loans, salaries, monthly inputs, salary history
 and the full workbook can be imported; clearances, users and the activity log are export-only.
+
+## Working as a team
+
+- **Comments** — the chat icon on employees, salary entries, payroll runs, clearances and maternity leaves
+  opens a thread. Type `@` to mention a teammate (their app username), reply, and resolve when done.
+- **Team Notes** (sidebar, and the "Team notes" button at the top) lists every thread in the company, with
+  filters for open items and mentions. The badge counts new comments that mention you or reply to you.
+- **Sync** — everyone uses the same Vercel URL and sync key. The app checks for teammates' changes every
+  45 seconds and when you return to the tab. If two people change different records at the same time,
+  both changes are kept automatically; you are only asked to choose when the *same* record was changed
+  differently by two people.
+
+## Testing the whole system
+
+Company Settings → **Backup & Excel Data Transfer** → **Full system test**:
+
+1. **Load test company** — adds "Full System Test Co." with 10 employees that cover every payroll rule,
+   12 months of payroll, a completed clearance, two maternity leaves, October inputs and sample comments.
+   Loading again resets only this company.
+2. **Sample email (.eml)** and **Sample Excel (Arabic)** — files to try in Smart Import (Payroll Run).
+3. Follow the **Test checklist** shown in the same card.

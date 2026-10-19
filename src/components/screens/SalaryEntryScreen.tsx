@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { CommentsButton } from '../common/Comments';
 import { maternityDeductionFor } from '../../utils/maternity';
 import {
   Company,
@@ -526,6 +527,19 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
           >
             {isSavedBadge ? 'Saved' : 'New, not saved yet'}
           </span>
+
+          {currentEmployee && (
+            <CommentsButton
+              entity={{
+                type: 'salary',
+                id: `${company.id}_${currentEmployee.empId}_${year}_${month}`,
+                label: `Salary — ${currentEmployee.name} — ${getMonthName(month)} ${year}`,
+                empId: currentEmployee.empId,
+                year,
+                month,
+              }}
+            />
+          )}
 
           <button
             type="button"

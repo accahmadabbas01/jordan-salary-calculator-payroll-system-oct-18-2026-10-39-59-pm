@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { downloadSampleEmail, downloadSampleSheet } from '../../utils/testSamples';
 import { ruleBranches, SSC_BRANCH_LABELS } from '../../utils/ssc';
 import { Company, AllowanceType, DeductionType, PayrollRuleSet, UserRole } from '../../types';
 import {
@@ -20,6 +21,7 @@ import {
   CheckCircle2,
   Shield,
   Layers,
+  FlaskConical,
 } from 'lucide-react';
 
 interface CompanySettingsScreenProps {
@@ -33,6 +35,7 @@ interface CompanySettingsScreenProps {
   onRestoreBackup: (importedData: any, overwriteRecords: boolean) => Promise<void>;
   onFullJSONRestore: (jsonData: any) => Promise<void>;
   onSeedSampleCompanies: () => Promise<void>;
+  onSeedFullTest: () => Promise<void>;
   getFullDataForBackup: () => Promise<{
     companies: any[];
     employees: any[];
@@ -56,6 +59,7 @@ export const CompanySettingsScreen: React.FC<CompanySettingsScreenProps> = ({
   onRestoreBackup,
   onFullJSONRestore,
   onSeedSampleCompanies,
+  onSeedFullTest,
   getFullDataForBackup,
   onUpdateRuleSets,
 }) => {
@@ -301,7 +305,7 @@ export const CompanySettingsScreen: React.FC<CompanySettingsScreenProps> = ({
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900'
             }`}
           >
-            Jordan Payroll Rules (2025 / 2026)
+            Jordan Payroll Rules (2000 – 2100)
           </button>
         </div>
       </div>
@@ -754,6 +758,64 @@ export const CompanySettingsScreen: React.FC<CompanySettingsScreenProps> = ({
             >
               Load Sample Companies
             </button>
+          </div>
+
+          {/* Full system test */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-lg border border-violet-200 dark:border-violet-900 space-y-3">
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+              <FlaskConical className="w-4 h-4 text-violet-500" />
+              <span>Full system test</span>
+            </h3>
+            <p className="text-slate-500">
+              Loads <strong>Full System Test Co.</strong> — 10 employees covering every rule (pre-2010 ceiling, youth
+              reduction, work-injury-only pensioner, non-Jordanian, SSC-exempt, two maternity leaves, a completed
+              clearance, a loan, a minimum-wage warning, national contribution), 12 months of payroll, October inputs and
+              team comments. Re-loading resets the test company only.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirm('Load (or reset) Full System Test Co.? Other companies are not touched.')) {
+                    await onSeedFullTest();
+                  }
+                }}
+                className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded"
+              >
+                Load test company
+              </button>
+              <button
+                type="button"
+                onClick={downloadSampleEmail}
+                className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 font-medium rounded"
+              >
+                Sample email (.eml)
+              </button>
+              <button
+                type="button"
+                onClick={downloadSampleSheet}
+                className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 font-medium rounded"
+              >
+                Sample Excel (Arabic)
+              </button>
+            </div>
+            <details className="text-slate-600 dark:text-slate-400">
+              <summary className="cursor-pointer font-semibold text-slate-700 dark:text-slate-300">
+                Test checklist
+              </summary>
+              <ol className="list-decimal list-inside space-y-1 mt-2">
+                <li><b>Team Notes</b>: read the sample threads, reply with an @mention, resolve one.</li>
+                <li><b>Employees</b>: open T001 (5,000 ceiling), T003 (youth), T004 (work injury only); comment on T009.</li>
+                <li><b>Payroll Run</b> (October 2026): Smart Import → upload the sample email and the sample Excel; fix the flagged rows (Fadi is not an employee).</li>
+                <li>Run payroll for October; check T002 (maternity, SSC pays), T008 (maternity, employer pays), T009 (minimum-wage warning), T010 (national contribution).</li>
+                <li><b>Maternity Leave</b>: compare Lina (eligible) and Dana (not eligible).</li>
+                <li><b>Payslips</b>: download one PDF and all selected as one PDF.</li>
+                <li><b>Clearances</b>: open Samer's completed clearance, edit it, then check his certificate.</li>
+                <li><b>Reports → Tax Certificate</b>: Samer's end-of-service split across the three periods; bulk ZIP for 2026.</li>
+                <li><b>Excel</b> button on each screen: export, edit, import back.</li>
+                <li><b>Cloud</b>: open the app in a second browser with the sync key, add a comment in each, and check both appear.</li>
+              </ol>
+            </details>
           </div>
 
           {/* Excel Backup & Restore */}

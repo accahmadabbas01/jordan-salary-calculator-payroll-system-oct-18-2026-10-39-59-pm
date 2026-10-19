@@ -16,7 +16,7 @@ import { mergeRuleSets } from '../utils/jordanRules';
 import { hashPassword } from '../utils/crypto';
 
 const DB_NAME = 'JordanSalaryCalculatorDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // v2: team comments
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -74,10 +74,19 @@ export async function getDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('app_state')) {
         db.createObjectStore('app_state', { keyPath: 'key' });
       }
+      if (!db.objectStoreNames.contains('comments')) {
+        const store = db.createObjectStore('comments', { keyPath: 'id' });
+        store.createIndex('companyId', 'companyId', { unique: false });
+      }
     };
 
     request.onsuccess = () => {
       dbInstance = request.result;
+      // Another tab opened a newer version: let it upgrade.
+      dbInstance.onversionchange = () => {
+        dbInstance?.close();
+        dbInstance = null;
+      };
       resolve(dbInstance);
     };
 
@@ -227,7 +236,7 @@ export async function createAdminUser(
 export async function deleteCompanyCascade(companyId: string): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(
-    ['companies', 'employees', 'salary_records', 'loans', 'monthly_inputs', 'clearances', 'email_settings'],
+    ['companies', 'employees', 'salary_records', 'loans', 'monthly_inputs', 'clearances', 'email_settings', 'comments'],
     'readwrite'
   );
 
@@ -252,6 +261,7 @@ export async function deleteCompanyCascade(companyId: string): Promise<void> {
   deleteByCompanyId('loans');
   deleteByCompanyId('monthly_inputs');
   deleteByCompanyId('clearances');
+  deleteByCompanyId('comments');
   tx.objectStore('email_settings').delete(companyId);
 
   return new Promise((resolve, reject) => {

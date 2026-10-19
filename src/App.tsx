@@ -14,6 +14,7 @@ import {
   User,
   ActivityLog,
   PayrollRuleSet,
+  TeamComment,
 } from './types';
 import {
   getDB,
@@ -33,6 +34,7 @@ import {
   seedSampleCompanies,
 } from './db/indexedDB';
 import { verifyPassword } from './utils/crypto';
+import { seedFullTestCompany, FULL_TEST_COMPANY_ID } from './db/seedFullTest';
 import { setActiveRuleSets } from './utils/calculator';
 import { TopBar } from './components/common/TopBar';
 import { Sidebar, ScreenId } from './components/common/Sidebar';
@@ -49,6 +51,8 @@ import { SalaryHistoryScreen } from './components/screens/SalaryHistoryScreen';
 import { PayslipsScreen } from './components/screens/PayslipsScreen';
 import { ClearancesScreen } from './components/screens/ClearancesScreen';
 import { MaternityLeaveScreen } from './components/screens/MaternityLeaveScreen';
+import { TeamNotesScreen } from './components/screens/TeamNotesScreen';
+import { CommentsContext } from './components/common/Comments';
 import { ReportsScreen } from './components/screens/ReportsScreen';
 import { CompanySettingsScreen } from './components/screens/CompanySettingsScreen';
 import { UsersActivityScreen } from './components/screens/UsersActivityScreen';
@@ -58,7 +62,7 @@ import {
 } from './components/common/ExcelImportExportModal';
 import { CloudSyncButton } from './components/common/CloudSyncPanel';
 import { useCloudSync } from './hooks/useCloudSync';
-import { FileSpreadsheet } from 'lucide-react';
+import { FileSpreadsheet, MessagesSquare } from 'lucide-react';
 
 // Which Excel import/export each screen offers.
 const SCREEN_EXCEL: Record<ScreenId, { type: ScreenImportExportType; label: string }> = {
@@ -72,6 +76,7 @@ const SCREEN_EXCEL: Record<ScreenId, { type: ScreenImportExportType; label: stri
   payslips: { type: 'salaries', label: 'Salaries' },
   clearances: { type: 'clearances', label: 'Clearances' },
   maternity: { type: 'salaries', label: 'Salaries' },
+  team_notes: { type: 'salaries', label: 'Salaries' },
   reports: { type: 'salary_history', label: 'Salary History' },
   company_settings: { type: 'full_backup', label: 'Full Workbook' },
   users: { type: 'users', label: 'Users' },
@@ -98,6 +103,8 @@ export default function App() {
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [ruleSets, setRuleSets] = useState<PayrollRuleSet[]>([]);
+  const [comments, setComments] = useState<TeamComment[]>([]);
+  const [notesSeenAt, setNotesSeenAt] = useState<string>('');
 
   // Navigation & Selection State
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('dashboard');
@@ -132,6 +139,7 @@ export default function App() {
         fetchedUsers,
         fetchedLogs,
         fetchedRules,
+        fetchedComments,
       ] = await Promise.all([
         getAllFromStore<Company>('companies'),
         getAllFromStore<Employee>('employees'),
@@ -142,6 +150,7 @@ export default function App() {
         getAllFromStore<User>('users'),
         getAllFromStore<ActivityLog>('activity_logs'),
         initRules(),
+        getAllFromStore<TeamComment>('comments'),
       ]);
 
       setCompanies(fetchedCompanies);
@@ -153,6 +162,7 @@ export default function App() {
       setUsers(fetchedUsers);
       setLogs(fetchedLogs.sort((a, b) => b.when.localeCompare(a.when)));
       setRuleSets(fetchedRules);
+      setComments(fetchedComments);
 
       // Check current session
       const savedUser = await getAppState<string | null>('currentUser', null);
@@ -199,8 +209,9 @@ export default function App() {
       clearances,
       users,
       ruleSets,
+      comments,
     }),
-    [companies, employees, records, loans, monthlyInputs, clearances, users, ruleSets]
+    [companies, employees, records, loans, monthlyInputs, clearances, users, ruleSets, comments]
   );
 
   const cloud = useCloudSync({
@@ -476,6 +487,41 @@ export default function App() {
         input.companyId
       );
     }
+  };
+
+  // Team comments
+  const handleSaveComment = async (comment: TeamComment) => {
+    const isNew = !comments.some((c) => c.id === comment.id);
+    await putInStore('comments', comment);
+    setComments((prev) => mergeById(prev, [comment], (c) => c.id));
+    if (currentUser && isNew) {
+      await logActivity(
+        currentUser.username,
+        comment.parentId ? 'Reply' : 'Comment',
+        `${comment.entityLabel}: ${comment.text.slice(0, 80)}`,
+        comment.companyId
+      );
+    }
+  };
+
+  const handleRemoveComments = async (ids: string[]) => {
+    for (const id of ids) await deleteFromStore('comments', id);
+    setComments((prev) => prev.filter((c) => !ids.includes(c.id)));
+  };
+
+  // Open the screen a comment belongs to
+  const handleOpenCommentEntity = (c: TeamComment) => {
+    if (c.year && c.month) handleChangePeriod(c.year, c.month);
+    if (c.empId) setSelectedEmpId(c.empId);
+    const screen: Record<TeamComment['entityType'], ScreenId> = {
+      general: 'team_notes',
+      employee: 'employees',
+      salary: 'salary_entry',
+      payroll_month: 'payroll_run',
+      clearance: 'clearances',
+      maternity: 'maternity',
+    };
+    handleNavigate(screen[c.entityType]);
   };
 
   // Save many monthly inputs at once (Smart Import)
@@ -845,6 +891,40 @@ export default function App() {
 
   const fullScopeExcel = excelType === 'full_backup' && currentUser?.role === 'admin';
 
+  // Team notes: comments for this company, and how many new ones concern the current user
+  const companyComments = comments.filter((c) => c.companyId === currentCompany?.id);
+  const myThreadIds = new Set(
+    companyComments.filter((c) => c.author === currentUser?.username).map((c) => c.parentId || c.id)
+  );
+  const unreadNotes = companyComments.filter(
+    (c) =>
+      c.author !== currentUser?.username &&
+      c.createdAt > notesSeenAt &&
+      (c.mentions.includes(currentUser?.username || '') ||
+        myThreadIds.has(c.parentId || c.id) ||
+        c.entityType === 'general')
+  ).length;
+
+  useEffect(() => {
+    if (!currentUser) return;
+    try {
+      setNotesSeenAt(localStorage.getItem(`jordan_payroll_notes_seen_${currentUser.username}`) || '');
+    } catch {
+      setNotesSeenAt('');
+    }
+  }, [currentUser?.username]);
+
+  useEffect(() => {
+    if (currentScreen !== 'team_notes' || !currentUser) return;
+    const now = new Date().toISOString();
+    setNotesSeenAt(now);
+    try {
+      localStorage.setItem(`jordan_payroll_notes_seen_${currentUser.username}`, now);
+    } catch {
+      /* per-device convenience only */
+    }
+  }, [currentScreen, currentUser?.username, comments.length]);
+
   // Excel import from any screen
   const handleExcelImport = async (data: any, type: ScreenImportExportType) => {
     if (!currentCompany) return;
@@ -1003,11 +1083,37 @@ export default function App() {
         />
 
         {/* Scrollable Screen Content */}
+        <CommentsContext.Provider
+          value={
+            currentCompany
+              ? {
+                  comments: companyComments,
+                  users,
+                  currentUser,
+                  companyId: currentCompany.id,
+                  save: handleSaveComment,
+                  remove: handleRemoveComments,
+                }
+              : null
+          }
+        >
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Per-screen Excel import/export + cloud save status */}
             <div className="flex flex-wrap items-center justify-end gap-2 -mb-3">
               <CloudSyncButton {...cloudButtonProps} />
+              <button
+                type="button"
+                onClick={() => handleNavigate('team_notes')}
+                className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-indigo-200 dark:border-indigo-900 bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 text-xs font-medium hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                title="Team notes and comments"
+              >
+                <MessagesSquare className="w-3.5 h-3.5" />
+                <span>Team notes</span>
+                {unreadNotes > 0 && (
+                  <span className="px-1.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold">{unreadNotes}</span>
+                )}
+              </button>
               {currentCompany && (
                 <button
                   type="button"
@@ -1176,6 +1282,10 @@ export default function App() {
               />
             )}
 
+            {currentScreen === 'team_notes' && currentCompany && (
+              <TeamNotesScreen onOpenEntity={handleOpenCommentEntity} />
+            )}
+
             {currentScreen === 'reports' && currentCompany && (
               <ReportsScreen
                 company={currentCompany}
@@ -1198,7 +1308,19 @@ export default function App() {
                 onDeleteCompany={handleDeleteCompany}
                 onRestoreBackup={handleRestoreBackup}
                 onFullJSONRestore={handleFullJSONRestore}
-                onSeedSampleCompanies={seedSampleCompanies}
+                onSeedSampleCompanies={async () => {
+                  await seedSampleCompanies();
+                  await refreshAllData();
+                }}
+                onSeedFullTest={async () => {
+                  await seedFullTestCompany(currentUser.username);
+                  await refreshAllData();
+                  setSelectedCompanyId(FULL_TEST_COMPANY_ID);
+                  handleChangePeriod(2026, 10);
+                  if (currentUser) {
+                    await logActivity(currentUser.username, 'Load Test Company', 'Loaded Full System Test Co.');
+                  }
+                }}
                 getFullDataForBackup={getFullDataForBackup}
                 onUpdateRuleSets={(rules) => {
                   setRuleSets(rules);
@@ -1233,6 +1355,7 @@ export default function App() {
             )}
           </div>
         </main>
+        </CommentsContext.Provider>
       </div>
 
       {/* Excel Import / Export (the full workbook covers every company only for admins) */}

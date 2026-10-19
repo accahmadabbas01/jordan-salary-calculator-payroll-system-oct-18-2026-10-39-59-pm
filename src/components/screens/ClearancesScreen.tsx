@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { CommentsButton } from '../common/Comments';
 import {
   Company,
   Employee,
@@ -448,7 +449,15 @@ export const ClearancesScreen: React.FC<ClearancesScreenProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CommentsButton
+                    entity={{
+                      type: 'clearance',
+                      id: activeClearance.id,
+                      label: `Clearance — ${activeClearanceEmp.name} (last day ${activeClearance.lastDay})`,
+                      empId: activeClearance.empId,
+                    }}
+                  />
                   <button
                     type="button"
                     onClick={() => setPreviewModalOpen(true)}

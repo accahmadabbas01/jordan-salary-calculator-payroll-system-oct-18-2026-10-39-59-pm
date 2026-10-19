@@ -192,6 +192,32 @@ export interface MonthlyInput {
   notes?: string;
 }
 
+/** What a team comment is attached to */
+export type CommentEntityType = 'general' | 'employee' | 'salary' | 'payroll_month' | 'clearance' | 'maternity';
+
+/** Team note / comment, shared through cloud sync */
+export interface TeamComment {
+  id: string;
+  companyId: string;
+  entityType: CommentEntityType;
+  entityId: string;
+  entityLabel: string;
+  /** Used to open the right screen from Team Notes */
+  empId?: string;
+  year?: number;
+  month?: number;
+  parentId?: string; // reply to another comment
+  text: string;
+  author: string; // username
+  authorName: string;
+  createdAt: string;
+  updatedAt: string;
+  mentions: string[]; // usernames
+  resolved: boolean;
+  resolvedBy?: string;
+  resolvedAt?: string;
+}
+
 export interface DepartmentSignOff {
   department: string;
   departmentAr: string;
