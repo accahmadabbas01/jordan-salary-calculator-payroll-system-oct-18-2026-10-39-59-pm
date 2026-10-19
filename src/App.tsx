@@ -48,6 +48,7 @@ import { MonthlyInputsScreen } from './components/screens/MonthlyInputsScreen';
 import { SalaryHistoryScreen } from './components/screens/SalaryHistoryScreen';
 import { PayslipsScreen } from './components/screens/PayslipsScreen';
 import { ClearancesScreen } from './components/screens/ClearancesScreen';
+import { MaternityLeaveScreen } from './components/screens/MaternityLeaveScreen';
 import { ReportsScreen } from './components/screens/ReportsScreen';
 import { CompanySettingsScreen } from './components/screens/CompanySettingsScreen';
 import { UsersActivityScreen } from './components/screens/UsersActivityScreen';
@@ -70,6 +71,7 @@ const SCREEN_EXCEL: Record<ScreenId, { type: ScreenImportExportType; label: stri
   salary_history: { type: 'salary_history', label: 'Salary History' },
   payslips: { type: 'salaries', label: 'Salaries' },
   clearances: { type: 'clearances', label: 'Clearances' },
+  maternity: { type: 'salaries', label: 'Salaries' },
   reports: { type: 'salary_history', label: 'Salary History' },
   company_settings: { type: 'full_backup', label: 'Full Workbook' },
   users: { type: 'users', label: 'Users' },
@@ -472,6 +474,20 @@ export default function App() {
         'Save Monthly Input',
         `Input for ${input.empId}: ${input.item} = ${input.amount}`,
         input.companyId
+      );
+    }
+  };
+
+  // Save many monthly inputs at once (Smart Import)
+  const handleSaveInputs = async (inputs: MonthlyInput[]) => {
+    await putManyInStore('monthly_inputs', inputs);
+    setMonthlyInputs((prev) => mergeById(prev, inputs, (i) => i.id));
+    if (currentUser) {
+      await logActivity(
+        currentUser.username,
+        'Smart Import',
+        `Imported ${inputs.length} monthly inputs for ${inputs[0]?.month}/${inputs[0]?.year}`,
+        inputs[0]?.companyId
       );
     }
   };
@@ -1089,6 +1105,7 @@ export default function App() {
                 initialMonth={month}
                 userRole={currentUser.role}
                 onExecutePayrollRun={handleExecutePayrollRun}
+                onSaveInputs={handleSaveInputs}
               />
             )}
 
@@ -1104,6 +1121,7 @@ export default function App() {
                 onDeleteInput={handleDeleteInput}
                 onUpdateEmployeePackage={handleSaveEmployee}
                 onNavigateToPayrollRun={() => handleNavigate('payroll_run')}
+                onSaveInputs={handleSaveInputs}
               />
             )}
 
@@ -1145,6 +1163,16 @@ export default function App() {
                 onCompleteClearance={handleCompleteClearance}
                 onReopenClearance={handleReopenClearance}
                 onDeleteClearance={handleDeleteClearance}
+              />
+            )}
+
+            {currentScreen === 'maternity' && currentCompany && (
+              <MaternityLeaveScreen
+                company={currentCompany}
+                employees={currentCompanyEmployees}
+                records={currentCompanyRecords}
+                userRole={currentUser.role}
+                onSaveEmployee={handleSaveEmployee}
               />
             )}
 

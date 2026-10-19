@@ -81,6 +81,7 @@ export interface SscResult {
   employeeRates: SscBranchRates;
   employerRates: SscBranchRates;
   youthReductionApplied: number; // fraction of employer old-age share removed
+  maternityDays: number;
   notes: string[];
   explanation: string;
 }
@@ -95,7 +96,8 @@ export function computeSsc(
   year: number,
   month: number,
   base: number,
-  rs: PayrollRuleSet
+  rs: PayrollRuleSet,
+  maternityDays = 0
 ): SscResult {
   const coverage = employeeCoverage(emp);
   const notes: string[] = [];
@@ -145,8 +147,22 @@ export function computeSsc(
     employerRates = { ...ZERO, workInjury: rates.employer.workInjury };
   }
 
-  const employee = round2(insured * sum(employeeRates));
-  const employer = round2(insured * sum(employerRates));
+  // Maternity leave days: SSC takes the employee share from the maternity allowance, and the
+  // employer still pays its old-age + unemployment share because the leave counts as service.
+  const leaveDays = coverage === 'full' ? Math.min(30, Math.max(0, maternityDays)) : 0;
+  const workedPart = insured * ((30 - leaveDays) / 30);
+  const leavePart = insured - workedPart;
+  const employee = round2(workedPart * sum(employeeRates));
+  const employer = round2(
+    workedPart * sum(employerRates) + leavePart * (employerRates.oldAge + employerRates.unemployment)
+  );
+  if (leaveDays > 0) {
+    notes.push(
+      `Maternity leave ${leaveDays} day(s): employee share for them is deducted by SSC from the maternity allowance; employer pays ${pct(
+        employerRates.oldAge + employerRates.unemployment
+      )} (old age + unemployment) on them.`
+    );
+  }
 
   if (coverage !== 'exempt' && rs.minimumWage && insured > 0 && insured < rs.minimumWage) {
     notes.push(
@@ -179,6 +195,7 @@ export function computeSsc(
     employeeRates,
     employerRates,
     youthReductionApplied,
+    maternityDays: leaveDays,
     notes,
     explanation,
   };
@@ -202,6 +219,17 @@ export function recordSsc(
       (record.amounts.other_allow || 0);
     return { insured: base, employee: employeeShare, employer: round2(base * 0.1425) };
   }
-  const r = computeSsc(emp, record.year, record.month, sscWageBase(emp, record.amounts, record.earnings || []), rs);
+  const r = computeSsc(
+    emp,
+    record.year,
+    record.month,
+    sscWageBase(emp, record.amounts, record.earnings || []),
+    rs,
+    maternityDaysIn(record.deductions || [])
+  );
   return { insured: r.insured, employee: employeeShare, employer: r.employer };
+}
+
+export function maternityDaysIn(deductions: { maternityDays?: number }[]): number {
+  return deductions.reduce((sum, d) => sum + (d.maternityDays || 0), 0);
 }
