@@ -53,6 +53,17 @@ export interface EmployeeDocument {
   dataUrl?: string; // stored base64 or blob URL
 }
 
+/** Maternity leave (Labour Law: 70 days; allowance paid by SSC maternity insurance) */
+export interface MaternityLeave {
+  id: string;
+  startDate: string; // yyyy-mm-dd, first day of leave
+  days: number; // 70 by default
+  childBirthDate?: string;
+  /** auto = decide from SSC contributions; or set manually */
+  eligibility: 'auto' | 'eligible' | 'not_eligible';
+  notes?: string;
+}
+
 export interface Employee {
   id: string; // internal unique id
   companyId: string;
@@ -84,6 +95,7 @@ export interface Employee {
   nationality?: 'jordanian' | 'non_jordanian';
   gender?: 'male' | 'female';
   birthDate?: string; // yyyy-mm-dd
+  maternityLeaves?: MaternityLeave[];
   claimsFamily?: boolean; // dependants exemption
   extraExemption?: number; // documented expenses exemption (yearly max 5,000)
   package: {
@@ -124,6 +136,8 @@ export interface SalaryDeductionItem {
   amount: number;
   preTax: boolean;
   loanId?: string;
+  /** Maternity leave days in this month paid by SSC (salary for them is not paid by the employer) */
+  maternityDays?: number;
 }
 
 export interface SalaryRecord {

@@ -7,7 +7,7 @@ import {
   ClearanceReason,
 } from '../types';
 import { DEFAULT_RULE_SETS } from './jordanRules';
-import { computeSsc, sscWageBase, SscResult } from './ssc';
+import { computeSsc, sscWageBase, SscResult, maternityDaysIn } from './ssc';
 
 export { DEFAULT_RULE_SETS };
 
@@ -228,7 +228,14 @@ export function calculatePayroll(
   }
 
   // 2. Social Security calculation (employee share + employer share)
-  const sscDetail = computeSsc(employee, year, month, sscWageBase(employee, amounts, earnings), ruleSet);
+  const sscDetail = computeSsc(
+    employee,
+    year,
+    month,
+    sscWageBase(employee, amounts, earnings),
+    ruleSet,
+    maternityDaysIn(deductions)
+  );
   const sscBase = sscDetail.base;
   const sscInsured = sscDetail.insured;
   const ssc = sscDetail.employee;

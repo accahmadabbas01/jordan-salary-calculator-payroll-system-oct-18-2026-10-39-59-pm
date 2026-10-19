@@ -11,7 +11,8 @@ import {
   generateSSCListSheet,
   generateCompanyStatutorySheet,
 } from '../../utils/excel';
-import { exportHtmlToPdf, printHtmlElement } from '../../utils/pdf';
+import { exportHtmlToPdf, printHtmlElement, exportMultipleHtmlToPdf, generatePdfBlob, downloadBlob } from '../../utils/pdf';
+import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import {
   BarChart3,
@@ -57,6 +58,10 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     employees[0]?.empId || ''
   );
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  // Bulk tax certificates: employees left unticked are skipped
+  const [bulkExcluded, setBulkExcluded] = useState<Set<string>>(new Set());
+  const [bulkRendering, setBulkRendering] = useState<Employee[] | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<string | null>(null);
 
   const companyRecords = records.filter((r) => r.companyId === company.id);
 
@@ -177,6 +182,59 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 
   const selectedCertEmp =
     employees.find((e) => e.empId === selectedCertEmpId) || employees[0];
+
+  // Employees who were paid (or settled) in the certificate period
+  const certPeriodStart = `${reportYear}-${String(fromMonth).padStart(2, '0')}-01`;
+  const certPeriodEnd = `${reportYear}-${String(toMonth).padStart(2, '0')}-31`;
+  const certEmployees = employees.filter(
+    (e) =>
+      companyRecords.some(
+        (r) => r.empId === e.empId && r.year === reportYear && r.month >= fromMonth && r.month <= toMonth
+      ) ||
+      clearances.some(
+        (c) => c.empId === e.empId && c.status === 'completed' && c.lastDay >= certPeriodStart && c.lastDay <= certPeriodEnd
+      )
+  );
+  const bulkSelected = certEmployees.filter((e) => !bulkExcluded.has(e.empId));
+
+  const handleBulkCertificates = async (mode: 'pdf' | 'zip') => {
+    if (bulkSelected.length === 0) return;
+    const slug = company.name.replace(/\s+/g, '_');
+    setBulkRendering(bulkSelected);
+    setBulkProgress('Preparing certificates…');
+    try {
+      // Let the hidden certificates render before capturing them
+      await new Promise((r) => setTimeout(r, 400));
+      const items = bulkSelected
+        .map((emp) => ({ emp, el: document.getElementById(`tax-cert-bulk-${emp.empId}`) }))
+        .filter((x): x is { emp: Employee; el: HTMLElement } => !!x.el);
+
+      if (mode === 'pdf') {
+        setBulkProgress(`Creating one PDF with ${items.length} certificates…`);
+        await exportMultipleHtmlToPdf(
+          items.map((x) => x.el),
+          `Tax_Certificates_QP177_${slug}_${reportYear}_M${fromMonth}-M${toMonth}.pdf`
+        );
+      } else {
+        const zip = new JSZip();
+        for (let i = 0; i < items.length; i++) {
+          const { emp, el } = items[i];
+          setBulkProgress(`Creating PDF ${i + 1} of ${items.length} (${emp.name})…`);
+          const blob = await generatePdfBlob(el);
+          zip.file(`QP177_${emp.empId}_${emp.name.replace(/[^\w\u0600-\u06FF-]+/g, '_')}_${reportYear}.pdf`, blob);
+        }
+        setBulkProgress('Compressing ZIP…');
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        downloadBlob(zipBlob, `Tax_Certificates_QP177_${slug}_${reportYear}_M${fromMonth}-M${toMonth}.zip`);
+      }
+      setBulkProgress(`Downloaded ${items.length} certificate${items.length === 1 ? '' : 's'}.`);
+    } catch (e) {
+      setBulkProgress(null);
+      alert('Error creating certificates: ' + String(e));
+    } finally {
+      setBulkRendering(null);
+    }
+  };
 
   // Calculations for Company Statutory Obligations in selected month
   const activeMonthRecords = companyRecords.filter(
@@ -922,6 +980,89 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Bulk download */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 text-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  Bulk download — {bulkSelected.length} of {certEmployees.length} employees
+                </span>
+                <p className="text-slate-500">
+                  Everyone paid between month {fromMonth} and {toMonth} of {reportYear}. Untick anyone to skip. Uses the
+                  calculated amounts (manual edits above apply only to the single certificate).
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={!!bulkRendering || bulkSelected.length === 0}
+                  onClick={() => handleBulkCertificates('pdf')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded font-medium hover:bg-slate-800 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>All in one PDF</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!!bulkRendering || bulkSelected.length === 0}
+                  onClick={() => handleBulkCertificates('zip')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-medium hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>ZIP (one PDF each)</span>
+                </button>
+              </div>
+            </div>
+            {bulkProgress && <div className="text-slate-600 dark:text-slate-300 font-medium">{bulkProgress}</div>}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 max-h-28 overflow-y-auto">
+              <button
+                type="button"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+                onClick={() =>
+                  setBulkExcluded(
+                    bulkExcluded.size === 0 ? new Set(certEmployees.map((e) => e.empId)) : new Set()
+                  )
+                }
+              >
+                {bulkExcluded.size === 0 ? 'Untick all' : 'Tick all'}
+              </button>
+              {certEmployees.map((e) => (
+                <label key={e.empId} className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!bulkExcluded.has(e.empId)}
+                    onChange={(ev) => {
+                      const next = new Set(bulkExcluded);
+                      if (ev.target.checked) next.delete(e.empId);
+                      else next.add(e.empId);
+                      setBulkExcluded(next);
+                    }}
+                  />
+                  <span className="font-mono text-slate-500">{e.empId}</span> {e.name}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Hidden renders used only while a bulk download is running */}
+          {bulkRendering && (
+            <div style={{ position: 'fixed', left: '-10000px', top: 0, width: '800px' }} aria-hidden="true">
+              {bulkRendering.map((emp) => (
+                <TaxCertificateQP177
+                  key={emp.empId}
+                  id={`tax-cert-bulk-${emp.empId}`}
+                  company={company}
+                  employee={emp}
+                  records={companyRecords}
+                  clearances={clearances}
+                  fromMonth={fromMonth}
+                  toMonth={toMonth}
+                  year={reportYear}
+                />
+              ))}
+            </div>
+          )}
 
           <div className="bg-slate-100 dark:bg-slate-950 p-6 rounded-lg flex justify-center overflow-x-auto">
             <TaxCertificateQP177

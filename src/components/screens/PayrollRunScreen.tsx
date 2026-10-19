@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { SmartImportModal } from '../common/SmartImportModal';
+import { maternityDeductionFor } from '../../utils/maternity';
 import {
   Company,
   Employee,
@@ -15,7 +17,7 @@ import {
   roundHalfUp,
   getMonthName,
   getRuleSetForPeriod, YEAR_OPTIONS } from '../../utils/calculator';
-import { PlayCircle, AlertTriangle, CheckCircle2, RefreshCw, X } from 'lucide-react';
+import { PlayCircle, AlertTriangle, CheckCircle2, RefreshCw, X, Wand2 } from 'lucide-react';
 
 interface PayrollRunScreenProps {
   company: Company;
@@ -28,6 +30,7 @@ interface PayrollRunScreenProps {
   initialMonth: number;
   userRole?: UserRole;
   onExecutePayrollRun: (newRecords: SalaryRecord[]) => Promise<{ created: number; replaced: number; skipped: number }>;
+  onSaveInputs?: (inputs: MonthlyInput[]) => Promise<void>;
 }
 
 export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
@@ -41,12 +44,14 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
   initialMonth,
   userRole = 'viewer',
   onExecutePayrollRun,
+  onSaveInputs,
 }) => {
   const [fromMonth, setFromMonth] = useState(initialMonth);
   const [fromYear, setFromYear] = useState(initialYear);
   const [toMonth, setToMonth] = useState(initialMonth);
   const [toYear, setToYear] = useState(initialYear);
   const [scope, setScope] = useState<'this_company' | 'all_companies'>('this_company');
+  const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [runResult, setRunResult] = useState<{ created: number; replaced: number; skipped: number } | null>(null);
@@ -216,6 +221,10 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
             }
           }
 
+          // Maternity leave days paid by SSC are not paid as salary
+          const maternity = maternityDeductionFor(emp, period.year, period.month, records, getRuleSetForPeriod);
+          if (maternity) deductions.push(maternity);
+
           // Monthly inputs
           const empInputs = monthlyInputs.filter(
             (inp) =>
@@ -311,7 +320,11 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
             ssc: calc.ssc,
             tax: calc.incomeTax,
             net: calc.net,
-            warning: !pRule ? `No payroll rules for year ${period.year}` : undefined,
+            warning: !pRule
+              ? `No payroll rules for year ${period.year}`
+              : calc.net < 0
+              ? 'Net pay is negative — deductions exceed pay this month (e.g. full month of maternity leave). Review recurring deductions.'
+              : undefined,
             record: rec,
           });
         }
@@ -355,14 +368,27 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
     <div className="space-y-4">
       {/* Configuration Header Card */}
       <div className="bg-white dark:bg-slate-900 p-5 rounded-lg border border-slate-200 dark:border-slate-800 space-y-4">
-        <div>
-          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <PlayCircle className="w-4 h-4 text-emerald-500" />
-            <span>Bulk Payroll Run</span>
-          </h2>
-          <p className="text-xs text-slate-500">
-            Generate and process payroll records for one month or across a chronological range of months.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <PlayCircle className="w-4 h-4 text-emerald-500" />
+              <span>Bulk Payroll Run</span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              Generate and process payroll records for one month or across a chronological range of months.
+            </p>
+          </div>
+          {onSaveInputs && userRole !== 'viewer' && (
+          <button
+            type="button"
+            onClick={() => setIsSmartImportOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-md text-xs font-semibold hover:bg-violet-700 shrink-0"
+            title="Read overtime, bonuses, advances, absences... from any sheet or email"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            <span>Smart Import (sheet / email)</span>
+          </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
@@ -646,6 +672,16 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
             </div>
           </div>
         </div>
+      )}
+      {isSmartImportOpen && onSaveInputs && (
+        <SmartImportModal
+          company={company}
+          employees={employees.filter((e) => e.companyId === company.id)}
+          year={fromYear}
+          month={fromMonth}
+          onApply={onSaveInputs}
+          onClose={() => setIsSmartImportOpen(false)}
+        />
       )}
     </div>
   );

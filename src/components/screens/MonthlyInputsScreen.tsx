@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SmartImportModal } from '../common/SmartImportModal';
 import { Company, Employee, MonthlyInput, UserRole } from '../../types';
 import {
   formatCurrency,
@@ -22,6 +23,7 @@ import {
   Check,
   X,
   AlertCircle,
+  Wand2,
 } from 'lucide-react';
 
 interface MonthlyInputsScreenProps {
@@ -35,6 +37,7 @@ interface MonthlyInputsScreenProps {
   onDeleteInput: (inputId: string) => void;
   onUpdateEmployeePackage: (emp: Employee) => void;
   onNavigateToPayrollRun: () => void;
+  onSaveInputs?: (inputs: MonthlyInput[]) => Promise<void>;
 }
 
 export const MonthlyInputsScreen: React.FC<MonthlyInputsScreenProps> = ({
@@ -48,7 +51,9 @@ export const MonthlyInputsScreen: React.FC<MonthlyInputsScreenProps> = ({
   onDeleteInput,
   onUpdateEmployeePackage,
   onNavigateToPayrollRun,
+  onSaveInputs,
 }) => {
+  const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
   const currentInputs = monthlyInputs.filter(
     (inp) => inp.companyId === company.id && inp.year === year && inp.month === month
   );
@@ -282,7 +287,18 @@ export const MonthlyInputsScreen: React.FC<MonthlyInputsScreenProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {onSaveInputs && userRole !== 'viewer' && (
+            <button
+            type="button"
+            onClick={() => setIsSmartImportOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-md text-xs font-semibold hover:bg-violet-700 shrink-0"
+            title="Read overtime, bonuses, advances, absences... from any sheet or email"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            <span>Smart Import (sheet / email)</span>
+          </button>
+            )}
             <button
               type="button"
               onClick={handleDownloadSheet}
@@ -484,6 +500,16 @@ export const MonthlyInputsScreen: React.FC<MonthlyInputsScreenProps> = ({
           </table>
         </div>
       </div>
+      {isSmartImportOpen && onSaveInputs && (
+        <SmartImportModal
+          company={company}
+          employees={employees.filter((e) => e.companyId === company.id)}
+          year={year}
+          month={month}
+          onApply={onSaveInputs}
+          onClose={() => setIsSmartImportOpen(false)}
+        />
+      )}
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { maternityDeductionFor } from '../../utils/maternity';
 import {
   Company,
   Employee,
@@ -179,6 +180,10 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
         });
       }
     }
+
+    // Maternity leave days paid by SSC are not paid as salary
+    const maternity = maternityDeductionFor(emp, year, month, records, getRuleSetForPeriod);
+    if (maternity) baseDeductions.push(maternity);
 
     // Apply monthly inputs for this month (Section 7)
     const empInputs = monthlyInputs.filter(
