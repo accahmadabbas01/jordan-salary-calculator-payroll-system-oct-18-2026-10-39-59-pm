@@ -6,47 +6,21 @@ import {
   SalaryDeductionItem,
   ClearanceReason,
 } from '../types';
+import { DEFAULT_RULE_SETS } from './jordanRules';
+import { computeSsc, sscWageBase, SscResult } from './ssc';
 
-export const DEFAULT_RULE_SETS: PayrollRuleSet[] = [
-  {
-    from: '2026-01-01',
-    name: 'Jordan payroll rules 2026',
-    sscRate: 0.075,
-    sscEmployerRate: 0.1425,
-    sscCeiling: 3733,
-    personalExemption: 9000,
-    familyExemption: 9000,
-    documentedExpensesMax: 5000,
-    totalExemptionsCeiling: 23000,
-    brackets: [
-      { limit: 5000, rate: 0.05 },
-      { limit: 10000, rate: 0.10 },
-      { limit: 15000, rate: 0.15 },
-      { limit: 20000, rate: 0.20 },
-      { limit: 1000000, rate: 0.25 },
-      { limit: Infinity, rate: 0.30 },
-    ],
-  },
-  {
-    from: '2025-01-01',
-    name: 'Jordan payroll rules 2025',
-    sscRate: 0.075,
-    sscEmployerRate: 0.1425,
-    sscCeiling: 3668,
-    personalExemption: 9000,
-    familyExemption: 9000,
-    documentedExpensesMax: 5000,
-    totalExemptionsCeiling: 23000,
-    brackets: [
-      { limit: 5000, rate: 0.05 },
-      { limit: 10000, rate: 0.10 },
-      { limit: 15000, rate: 0.15 },
-      { limit: 20000, rate: 0.20 },
-      { limit: 1000000, rate: 0.25 },
-      { limit: Infinity, rate: 0.30 },
-    ],
-  },
-];
+export { DEFAULT_RULE_SETS };
+
+// Rule sets used when a caller does not pass its own (kept in sync with Company Settings → Payroll Rules).
+let activeRuleSets: PayrollRuleSet[] = DEFAULT_RULE_SETS;
+export function setActiveRuleSets(ruleSets: PayrollRuleSet[]) {
+  activeRuleSets = ruleSets && ruleSets.length ? ruleSets : DEFAULT_RULE_SETS;
+}
+
+/** Years selectable everywhere in the system. */
+export const MIN_YEAR = 2000;
+export const MAX_YEAR = 2100;
+export const YEAR_OPTIONS: number[] = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i);
 
 export const ARABIC_MONTHS = [
   'كانون الثاني',
@@ -145,8 +119,9 @@ export function parseArabicIndicNumber(val: string | number): number {
 export function getRuleSetForPeriod(
   year: number,
   month: number,
-  ruleSets: PayrollRuleSet[] = DEFAULT_RULE_SETS
+  ruleSets?: PayrollRuleSet[]
 ): PayrollRuleSet | null {
+  if (!ruleSets || ruleSets.length === 0) ruleSets = activeRuleSets;
   const monthStr = month < 10 ? `0${month}` : `${month}`;
   const periodDate = `${year}-${monthStr}-01`;
 
@@ -176,6 +151,10 @@ export interface CalculationResult {
   taxExplanation: string;
   ruleSetName: string;
   ruleAvailable: boolean;
+  /** Monthly national contribution included in incomeTax (1% above 200,000 JOD/yr) */
+  nationalContribution: number;
+  /** Full SSC breakdown (rates per branch, coverage, notes); null when no rules apply */
+  sscDetail: SscResult | null;
 }
 
 /**
@@ -243,49 +222,18 @@ export function calculatePayroll(
       taxExplanation: `No payroll rules configured for ${year}-${month}. Manual entry required.`,
       ruleSetName: 'None',
       ruleAvailable: false,
+      nationalContribution: 0,
+      sscDetail: null,
     };
   }
 
   // 2. Social Security calculation (employee share + employer share)
-  let sscBase = 0;
-  let sscInsured = 0;
-  let ssc = 0;
-  let sscEmployer = 0;
-  let sscExplanation = '';
-
-  const employerRate = ruleSet.sscEmployerRate || 0.1425;
-
-  if (employee.sscExempt) {
-    ssc = 0;
-    sscEmployer = 0;
-    sscExplanation = 'Employee is exempt from Social Security (0.00).';
-  } else if (employee.sscWage && employee.sscWage > 0) {
-    sscBase = employee.sscWage;
-    sscInsured = Math.min(Math.max(sscBase, 0), ruleSet.sscCeiling);
-    ssc = roundHalfUp(sscInsured * ruleSet.sscRate, 2);
-    sscEmployer = roundHalfUp(sscInsured * employerRate, 2);
-    sscExplanation = `Social Security: insured wage ${formatCurrency(sscInsured, '')} × 7.5% (employee) = ${formatCurrency(ssc, '')} | Company share: 14.25% = ${formatCurrency(sscEmployer, '')} (Total SSC: ${formatCurrency(ssc + sscEmployer, '')}).`;
-  } else {
-    const sscAdditionalAllowances = earnings
-      .filter((e) => e.ssc)
-      .reduce((sum, e) => sum + (e.amount || 0), 0);
-    
-    sscBase =
-      (amounts.basic || 0) +
-      (amounts.housing || 0) +
-      (amounts.transport || 0) +
-      (amounts.other_allow || 0) +
-      sscAdditionalAllowances -
-      (amounts.unpaid_leave || 0);
-
-    sscBase = Math.max(sscBase, 0);
-    sscInsured = Math.min(sscBase, ruleSet.sscCeiling);
-    ssc = roundHalfUp(sscInsured * ruleSet.sscRate, 2);
-    sscEmployer = roundHalfUp(sscInsured * employerRate, 2);
-    
-    const ceilingNote = sscBase > ruleSet.sscCeiling ? ` (capped at ceiling ${formatCurrency(ruleSet.sscCeiling, '')})` : '';
-    sscExplanation = `Social Security: wage base ${formatCurrency(sscBase, '')}${ceilingNote} × 7.5% (employee) = ${formatCurrency(ssc, '')} | Company share: 14.25% = ${formatCurrency(sscEmployer, '')} (Total SSC: ${formatCurrency(ssc + sscEmployer, '')}).`;
-  }
+  const sscDetail = computeSsc(employee, year, month, sscWageBase(employee, amounts, earnings), ruleSet);
+  const sscBase = sscDetail.base;
+  const sscInsured = sscDetail.insured;
+  const ssc = sscDetail.employee;
+  const sscEmployer = sscDetail.employer;
+  const sscExplanation = sscDetail.explanation;
 
   // 3. Income Tax calculation
   const taxableEarningsAdditional = earnings
@@ -312,21 +260,35 @@ export function calculatePayroll(
 
   const annualTaxableIncome = Math.max(annualIncome - ssc * 12 - exemptions, 0);
 
-  // Progressive bracket calculation
-  let remainingTaxable = annualTaxableIncome;
-  let annualTax = 0;
-  for (let i = 0; i < ruleSet.brackets.length; i++) {
-    const bracket = ruleSet.brackets[i];
-    const prevLimit = i === 0 ? 0 : ruleSet.brackets[i - 1].limit;
-    const bracketWidth = bracket.limit - prevLimit;
-    if (remainingTaxable <= 0) break;
-    const taxableInBracket = Math.min(remainingTaxable, bracketWidth);
-    annualTax += taxableInBracket * bracket.rate;
-    remainingTaxable -= taxableInBracket;
-  }
+  let incomeTax: number;
+  let taxExplanation: string;
+  let nationalContribution = 0;
+  if (ruleSet.taxManual) {
+    incomeTax = amounts.income_tax || 0;
+    taxExplanation = `Income tax for ${year} is not calculated automatically — enter it manually.`;
+  } else {
+    // Progressive bracket calculation (a null limit comes from JSON and means "no upper limit")
+    let remainingTaxable = annualTaxableIncome;
+    let annualTax = 0;
+    for (let i = 0; i < ruleSet.brackets.length; i++) {
+      const limit = ruleSet.brackets[i].limit ?? Infinity;
+      const prevLimit = i === 0 ? 0 : ruleSet.brackets[i - 1].limit ?? Infinity;
+      const bracketWidth = limit - prevLimit;
+      if (remainingTaxable <= 0) break;
+      const taxableInBracket = Math.min(remainingTaxable, bracketWidth);
+      annualTax += taxableInBracket * ruleSet.brackets[i].rate;
+      remainingTaxable -= taxableInBracket;
+    }
 
-  const incomeTax = roundHalfUp(annualTax / 12, 2);
-  const taxExplanation = `Income tax: annual taxable income ${formatCurrency(annualTaxableIncome, '')} (annual gross ${formatCurrency(annualIncome, '')} - SSC ${formatCurrency(ssc * 12, '')} - exemptions ${formatCurrency(exemptions, '')}) → annual tax ${formatCurrency(annualTax, '')} / 12 = ${formatCurrency(incomeTax, '')}.`;
+    const nc = ruleSet.nationalContribution;
+    const annualNC = nc ? Math.max(annualTaxableIncome - nc.threshold, 0) * nc.rate : 0;
+    nationalContribution = roundHalfUp(annualNC / 12, 2);
+
+    incomeTax = roundHalfUp((annualTax + annualNC) / 12, 2);
+    taxExplanation = `Income tax: annual taxable income ${formatCurrency(annualTaxableIncome, '')} (annual gross ${formatCurrency(annualIncome, '')} - SSC ${formatCurrency(ssc * 12, '')} - exemptions ${formatCurrency(exemptions, '')}) → annual tax ${formatCurrency(annualTax, '')}${
+      annualNC > 0 ? ` + national contribution ${formatCurrency(annualNC, '')}` : ''
+    } / 12 = ${formatCurrency(incomeTax, '')}.`;
+  }
 
   // 4. Total deductions & Net
   const otherDeductionsTotal =
@@ -359,6 +321,8 @@ export function calculatePayroll(
     taxExplanation,
     ruleSetName: ruleSet.name,
     ruleAvailable: true,
+    nationalContribution,
+    sscDetail,
   };
 }
 

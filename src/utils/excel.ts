@@ -1,4 +1,6 @@
 import * as XLSX from 'xlsx';
+import { recordSsc } from './ssc';
+import { getRuleSetForPeriod } from './calculator';
 import {
   Company,
   Employee,
@@ -70,6 +72,39 @@ function toDateStr(v: any): string {
 
 function str(v: any): string {
   return v === undefined || v === null ? '' : String(v).trim();
+}
+
+function coverageLabel(e: Employee): string {
+  const c = e.sscExempt ? 'exempt' : e.sscCoverage || 'full';
+  return c === 'exempt' ? 'Exempt' : c === 'injury_only' ? 'Work injury only' : 'Full';
+}
+
+function youthLabel(y?: string): string {
+  return y === 'small' ? 'Small' : y === 'medium' ? 'Medium' : 'None';
+}
+
+/** Social Security fields of an employee row (coverage, youth reduction, nationality, age). */
+function parseSscFields(r: Record<string, any>): Partial<Employee> {
+  const exemptFlag = flag(pick(r, 'ssc exempt', 'not subject to social security'));
+  const cov = str(pick(r, 'ssc coverage')).toLowerCase();
+  const sscCoverage: Employee['sscCoverage'] =
+    exemptFlag || cov.startsWith('exempt') || cov.startsWith('not')
+      ? 'exempt'
+      : cov.includes('injury')
+      ? 'injury_only'
+      : 'full';
+  const youth = str(pick(r, 'youth reduction')).toLowerCase();
+  const nat = str(pick(r, 'nationality')).toLowerCase();
+  const gender = str(pick(r, 'gender')).toLowerCase();
+  return {
+    sscCoverage,
+    sscExempt: sscCoverage === 'exempt',
+    sscInsuredBefore2010: flag(pick(r, 'insured before may 2010', 'insured before 2010')),
+    sscYouthReduction: youth.startsWith('small') ? 'small' : youth.startsWith('medium') ? 'medium' : 'none',
+    nationality: nat.startsWith('non') || nat.includes('foreign') ? 'non_jordanian' : 'jordanian',
+    gender: gender.startsWith('f') || gender.startsWith('أنث') ? 'female' : gender.startsWith('m') || gender.startsWith('ذكر') ? 'male' : undefined,
+    birthDate: toDateStr(pick(r, 'date of birth', 'birth date', 'dob')) || undefined,
+  };
 }
 
 /**
@@ -596,6 +631,7 @@ export function generateAnnualSummarySheet(
     const gross = recs.reduce((s, r) => s + r.gross, 0);
     const ssc = recs.reduce((s, r) => s + (r.amounts.social_sec || 0), 0);
     const tax = recs.reduce((s, r) => s + (r.amounts.income_tax || 0), 0);
+    const ded = recs.reduce((s, r) => s + r.totalDed, 0);
     const net = recs.reduce((s, r) => s + r.net, 0);
 
     return {
@@ -607,6 +643,7 @@ export function generateAnnualSummarySheet(
       'Gross Salary': roundHalfUp(gross, 2),
       'Social Security': roundHalfUp(ssc, 2),
       'Income Tax': roundHalfUp(tax, 2),
+      'Total Deductions': roundHalfUp(ded, 2),
       'Net Salary': roundHalfUp(net, 2),
     };
   });
@@ -615,6 +652,7 @@ export function generateAnnualSummarySheet(
   const totalGross = rows.reduce((s, r) => s + r['Gross Salary'], 0);
   const totalSsc = rows.reduce((s, r) => s + r['Social Security'], 0);
   const totalTax = rows.reduce((s, r) => s + r['Income Tax'], 0);
+  const totalDed = rows.reduce((s, r) => s + r['Total Deductions'], 0);
   const totalNet = rows.reduce((s, r) => s + r['Net Salary'], 0);
 
   rows.push({
@@ -626,6 +664,7 @@ export function generateAnnualSummarySheet(
     'Gross Salary': roundHalfUp(totalGross, 2),
     'Social Security': roundHalfUp(totalSsc, 2),
     'Income Tax': roundHalfUp(totalTax, 2),
+    'Total Deductions': roundHalfUp(totalDed, 2),
     'Net Salary': roundHalfUp(totalNet, 2),
   });
 
@@ -1086,13 +1125,11 @@ export function generateCompanyStatutorySheet(
   const monthRows = monthRecords.map((r) => {
     const emp = employees.find((e) => e.empId === r.empId);
     const basic = r.amounts.basic || 0;
-    const insuredWage =
-      emp?.sscWage && emp.sscWage > 0
-        ? emp.sscWage
-        : basic + (r.amounts.housing || 0) + (r.amounts.transport || 0) + (r.amounts.other_allow || 0);
+    const rSsc = recordSsc(emp, r, getRuleSetForPeriod(r.year, r.month));
+    const insuredWage = rSsc.insured;
 
     const sscEmployee = r.amounts.social_sec || 0;
-    const sscCompany = roundHalfUp(insuredWage * 0.1425, 2);
+    const sscCompany = rSsc.employer;
     const sscTotal = roundHalfUp(sscEmployee + sscCompany, 2);
     const taxWithheld = r.amounts.income_tax || 0;
     const totalGovernmentRemittance = roundHalfUp(sscTotal + taxWithheld, 2);
@@ -1129,13 +1166,11 @@ export function generateCompanyStatutorySheet(
     for (const r of mRecs) {
       const emp = employees.find((e) => e.empId === r.empId);
       const basic = r.amounts.basic || 0;
-      const insuredWage =
-        emp?.sscWage && emp.sscWage > 0
-          ? emp.sscWage
-          : basic + (r.amounts.housing || 0) + (r.amounts.transport || 0) + (r.amounts.other_allow || 0);
+      const rSsc = recordSsc(emp, r, getRuleSetForPeriod(r.year, r.month));
+    const insuredWage = rSsc.insured;
 
       const sscEmp = r.amounts.social_sec || 0;
-      const sscComp = roundHalfUp(insuredWage * 0.1425, 2);
+      const sscComp = rSsc.employer;
       const tax = r.amounts.income_tax || 0;
 
       totalInsured += insuredWage;
@@ -1185,6 +1220,12 @@ export function exportEmployeesSheet(company: Company, employees: Employee[]): U
     'SSC Number': e.sscNumber || '',
     'SSC Insured Wage': e.sscWage || '',
     'SSC Exempt (1=Yes, 0=No)': e.sscExempt ? 1 : 0,
+    'SSC Coverage (Full / Work injury only / Exempt)': coverageLabel(e),
+    'Insured Before May 2010 (1=Yes)': e.sscInsuredBefore2010 ? 1 : 0,
+    'Youth Reduction (None / Small / Medium)': youthLabel(e.sscYouthReduction),
+    'Nationality (Jordanian / Non-Jordanian)': e.nationality === 'non_jordanian' ? 'Non-Jordanian' : 'Jordanian',
+    Gender: e.gender === 'female' ? 'Female' : e.gender === 'male' ? 'Male' : '',
+    'Date of Birth': e.birthDate || '',
     'Claims Family Exemption (1=Yes)': e.claimsFamily ? 1 : 0,
     'Extra Expenses Exemption': e.extraExemption || 0,
     'Basic Salary': e.package?.basic || 0,
@@ -1237,6 +1278,12 @@ export function generateEmployeeImportTemplate(company: Company): Uint8Array {
       'SSC Number': '554433221',
       'SSC Insured Wage': 1200,
       'SSC Exempt (1=Yes, 0=No)': 0,
+      'SSC Coverage (Full / Work injury only / Exempt)': 'Full',
+      'Insured Before May 2010 (1=Yes)': 0,
+      'Youth Reduction (None / Small / Medium)': 'None',
+      'Nationality (Jordanian / Non-Jordanian)': 'Jordanian',
+      Gender: 'Male',
+      'Date of Birth': '1985-04-12',
       'Claims Family Exemption (1=Yes)': 1,
       'Extra Expenses Exemption': 0,
       'Basic Salary': 900,
@@ -1264,6 +1311,12 @@ export function generateEmployeeImportTemplate(company: Company): Uint8Array {
       'SSC Number': '667788990',
       'SSC Insured Wage': 1600,
       'SSC Exempt (1=Yes, 0=No)': 0,
+      'SSC Coverage (Full / Work injury only / Exempt)': 'Full',
+      'Insured Before May 2010 (1=Yes)': 0,
+      'Youth Reduction (None / Small / Medium)': 'None',
+      'Nationality (Jordanian / Non-Jordanian)': 'Jordanian',
+      Gender: 'Female',
+      'Date of Birth': '1990-09-30',
       'Claims Family Exemption (1=Yes)': 0,
       'Extra Expenses Exemption': 0,
       'Basic Salary': 1200,
@@ -1347,7 +1400,7 @@ export function parseEmployeesImportSheet(
       taxNumber: str(pick(r, 'tax number', 'employee tax number')) || undefined,
       sscNumber: str(pick(r, 'ssc number', 'social security number')) || undefined,
       sscWage,
-      sscExempt: flag(pick(r, 'ssc exempt', 'not subject to social security')),
+      ...parseSscFields(r),
       claimsFamily: flag(pick(r, 'claims family exemption', 'dependants exemption')),
       extraExemption: num(pick(r, 'extra expenses exemption', 'documented expenses exemption')),
       package: {

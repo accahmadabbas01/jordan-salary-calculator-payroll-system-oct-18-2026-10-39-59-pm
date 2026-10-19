@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Company, Employee, SalaryRecord } from '../../types';
-import { formatCurrency, getMonthName, roundHalfUp } from '../../utils/calculator';
+import { recordSsc } from '../../utils/ssc';
+import { getRuleSetForPeriod } from '../../utils/calculator';
+import { Company, Employee, SalaryRecord, Clearance } from '../../types';
+import { formatCurrency, getMonthName, roundHalfUp, YEAR_OPTIONS } from '../../utils/calculator';
 import { TaxCertificateQP177 } from '../documents/TaxCertificateQP177';
 import { CompanyStatutoryDoc } from '../documents/CompanyStatutoryDoc';
 import {
@@ -27,6 +29,7 @@ interface ReportsScreenProps {
   company: Company;
   employees: Employee[];
   records: SalaryRecord[];
+  clearances?: Clearance[];
   year: number;
   month: number;
 }
@@ -35,6 +38,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   company,
   employees,
   records,
+  clearances = [],
   year,
   month,
 }) => {
@@ -48,6 +52,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   const [statutoryViewMode, setStatutoryViewMode] = useState<'month' | 'annual'>('month');
   const [fromMonth, setFromMonth] = useState(1);
   const [toMonth, setToMonth] = useState(12);
+  const [isEditingCert, setIsEditingCert] = useState(false);
   const [selectedCertEmpId, setSelectedCertEmpId] = useState<string>(
     employees[0]?.empId || ''
   );
@@ -186,13 +191,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   activeMonthRecords.forEach((r) => {
     const emp = employees.find((e) => e.empId === r.empId);
     const basic = r.amounts.basic || 0;
-    const insuredWage =
-      emp?.sscWage && emp.sscWage > 0
-        ? emp.sscWage
-        : basic + (r.amounts.housing || 0) + (r.amounts.transport || 0) + (r.amounts.other_allow || 0);
+    const rSsc = recordSsc(emp, r, getRuleSetForPeriod(r.year, r.month));
+    const insuredWage = rSsc.insured;
 
     const sscEmp = r.amounts.social_sec || 0;
-    const sscComp = roundHalfUp(insuredWage * 0.1425, 2);
+    const sscComp = rSsc.employer;
     const tax = r.amounts.income_tax || 0;
 
     mInsured += insuredWage;
@@ -226,7 +229,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               onChange={(e) => setReportYear(parseInt(e.target.value, 10))}
               className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border rounded font-mono font-medium"
             >
-              {[2024, 2025, 2026, 2027, 2028].map((y) => (
+              {YEAR_OPTIONS.map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
@@ -503,13 +506,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                       activeMonthRecords.map((r) => {
                         const emp = employees.find((e) => e.empId === r.empId);
                         const basic = r.amounts.basic || 0;
-                        const insuredWage =
-                          emp?.sscWage && emp.sscWage > 0
-                            ? emp.sscWage
-                            : basic + (r.amounts.housing || 0) + (r.amounts.transport || 0) + (r.amounts.other_allow || 0);
+                        const rSsc = recordSsc(emp, r, getRuleSetForPeriod(r.year, r.month));
+    const insuredWage = rSsc.insured;
 
                         const sscEmp = r.amounts.social_sec || 0;
-                        const sscComp = roundHalfUp(insuredWage * 0.1425, 2);
+                        const sscComp = rSsc.employer;
                         const sscTot = roundHalfUp(sscEmp + sscComp, 2);
                         const tax = r.amounts.income_tax || 0;
                         const totalDue = roundHalfUp(sscTot + tax, 2);
@@ -624,13 +625,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                       mRecs.forEach((r) => {
                         const emp = employees.find((e) => e.empId === r.empId);
                         const basic = r.amounts.basic || 0;
-                        const insuredWage =
-                          emp?.sscWage && emp.sscWage > 0
-                            ? emp.sscWage
-                            : basic + (r.amounts.housing || 0) + (r.amounts.transport || 0) + (r.amounts.other_allow || 0);
+                        const rSsc = recordSsc(emp, r, getRuleSetForPeriod(r.year, r.month));
+    const insuredWage = rSsc.insured;
 
                         const se = r.amounts.social_sec || 0;
-                        const sc = roundHalfUp(insuredWage * 0.1425, 2);
+                        const sc = rSsc.employer;
                         const t = r.amounts.income_tax || 0;
 
                         ins += insuredWage;
@@ -733,6 +732,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   <th className="px-3 py-2.5 text-right">Gross Salary</th>
                   <th className="px-3 py-2.5 text-right">SSC (7.5%)</th>
                   <th className="px-3 py-2.5 text-right">Income Tax</th>
+                  <th className="px-3 py-2.5 text-right">Total Deductions</th>
                   <th className="px-3 py-2.5 text-right">Net Salary</th>
                 </tr>
               </thead>
@@ -746,6 +746,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   const totGross = empRecords.reduce((sum, r) => sum + r.gross, 0);
                   const totSsc = empRecords.reduce((sum, r) => sum + (r.amounts.social_sec || 0), 0);
                   const totTax = empRecords.reduce((sum, r) => sum + (r.amounts.income_tax || 0), 0);
+                  const totDed = empRecords.reduce((sum, r) => sum + r.totalDed, 0);
                   const totNet = empRecords.reduce((sum, r) => sum + r.net, 0);
 
                   return (
@@ -766,6 +767,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">
                         {formatCurrency(totTax, '')}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums text-rose-600 dark:text-rose-400">
+                        {formatCurrency(totDed, '')}
                       </td>
                       <td className="px-3 py-2 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
                         {formatCurrency(totNet, '')}
@@ -874,6 +878,20 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => setIsEditingCert((v) => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium ${
+                  isEditingCert
+                    ? 'bg-amber-500 text-white hover:bg-amber-600'
+                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200'
+                }`}
+                title="Correct any amount on the certificate before printing"
+              >
+                <span>{isEditingCert ? 'Done editing' : 'Edit amounts'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isEditingCert}
                 onClick={() => printHtmlElement('tax-cert-doc-view')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded font-medium hover:bg-slate-200"
               >
@@ -883,7 +901,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 
               <button
                 type="button"
-                disabled={isExportingPdf}
+                disabled={isExportingPdf || isEditingCert}
                 onClick={async () => {
                   const el = document.getElementById('tax-cert-doc-view');
                   if (!el) return;
@@ -911,9 +929,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               company={company}
               employee={selectedCertEmp}
               records={companyRecords}
+              clearances={clearances}
               fromMonth={fromMonth}
               toMonth={toMonth}
               year={reportYear}
+              editable={isEditingCert}
             />
           </div>
         </div>

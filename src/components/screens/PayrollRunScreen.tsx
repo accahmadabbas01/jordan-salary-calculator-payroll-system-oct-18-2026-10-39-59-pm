@@ -14,8 +14,7 @@ import {
   isEmployedInMonth,
   roundHalfUp,
   getMonthName,
-  getRuleSetForPeriod,
-} from '../../utils/calculator';
+  getRuleSetForPeriod, YEAR_OPTIONS } from '../../utils/calculator';
 import { PlayCircle, AlertTriangle, CheckCircle2, RefreshCw, X } from 'lucide-react';
 
 interface PayrollRunScreenProps {
@@ -389,7 +388,7 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
                 onChange={(e) => setFromYear(parseInt(e.target.value, 10))}
                 className="w-1/2 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md font-mono"
               >
-                {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                {YEAR_OPTIONS.map((y) => (
                   <option key={y} value={y}>
                     {y}
                   </option>
@@ -420,7 +419,7 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
                 onChange={(e) => setToYear(parseInt(e.target.value, 10))}
                 className="w-1/2 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md font-mono"
               >
-                {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                {YEAR_OPTIONS.map((y) => (
                   <option key={y} value={y}>
                     {y}
                   </option>
@@ -521,6 +520,7 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
                 <th className="px-3 py-2.5 text-right">Gross</th>
                 <th className="px-3 py-2.5 text-right">SSC</th>
                 <th className="px-3 py-2.5 text-right">Tax</th>
+                <th className="px-3 py-2.5 text-right">Total Ded.</th>
                 <th className="px-3 py-2.5 text-right">Net</th>
                 <th className="px-3 py-2.5">Notes / Warnings</th>
               </tr>
@@ -528,7 +528,7 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {previewData.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-slate-400">
+                  <td colSpan={11} className="p-8 text-center text-slate-400">
                     No active employees in the selected period.
                   </td>
                 </tr>
@@ -575,6 +575,9 @@ export const PayrollRunScreen: React.FC<PayrollRunScreenProps> = ({
                     </td>
                     <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
                       {formatCurrency(p.tax, '')}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums text-rose-600 dark:text-rose-400">
+                      {formatCurrency(p.record.totalDed, '')}
                     </td>
                     <td className="px-3 py-2 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
                       {formatCurrency(p.net, '')}

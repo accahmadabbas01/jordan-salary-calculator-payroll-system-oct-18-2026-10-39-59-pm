@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Company, Employee, Loan, SalaryRecord, UserRole } from '../../types';
-import { formatCurrency, parseArabicIndicNumber, getMonthName } from '../../utils/calculator';
+import { formatCurrency, parseArabicIndicNumber, getMonthName, YEAR_OPTIONS } from '../../utils/calculator';
 import { SearchableEmployeeSelect } from '../common/SearchableEmployeeSelect';
 import {
   CreditCard,
@@ -378,7 +378,7 @@ export const LoansScreen: React.FC<LoansScreenProps> = ({
                     }
                     className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md font-mono"
                   >
-                    {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                    {YEAR_OPTIONS.map((y) => (
                       <option key={y} value={y}>
                         {y}
                       </option>

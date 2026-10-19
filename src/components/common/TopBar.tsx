@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Company, User } from '../../types';
-import { ENGLISH_MONTHS, ARABIC_MONTHS } from '../../utils/calculator';
+import { ENGLISH_MONTHS, ARABIC_MONTHS, YEAR_OPTIONS } from '../../utils/calculator';
 import {
   Building2,
   Calendar,
@@ -41,7 +41,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const currentCompany = companies.find((c) => c.id === selectedCompanyId);
 
-  const availableYears = [2024, 2025, 2026, 2027, 2028];
+  const availableYears = YEAR_OPTIONS;
 
   return (
     <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 md:px-6 flex items-center justify-between gap-4 sticky top-0 z-40">

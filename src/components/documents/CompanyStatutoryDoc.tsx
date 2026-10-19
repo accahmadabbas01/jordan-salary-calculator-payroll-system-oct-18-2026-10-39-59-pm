@@ -1,4 +1,6 @@
 import React from 'react';
+import { recordSsc } from '../../utils/ssc';
+import { getRuleSetForPeriod } from '../../utils/calculator';
 import { Company, Employee, SalaryRecord } from '../../types';
 import { formatCurrency, getMonthName, roundHalfUp } from '../../utils/calculator';
 
@@ -35,13 +37,11 @@ export const CompanyStatutoryDoc: React.FC<CompanyStatutoryDocProps> = ({
   const items = monthRecords.map((r) => {
     const emp = employees.find((e) => e.empId === r.empId);
     const basic = r.amounts.basic || 0;
-    const insuredWage =
-      emp?.sscWage && emp.sscWage > 0
-        ? emp.sscWage
-        : basic + (r.amounts.housing || 0) + (r.amounts.transport || 0) + (r.amounts.other_allow || 0);
+    const rSsc = recordSsc(emp, r, getRuleSetForPeriod(r.year, r.month));
+    const insuredWage = rSsc.insured;
 
     const sscEmployee = r.amounts.social_sec || 0;
-    const sscCompany = roundHalfUp(insuredWage * 0.1425, 2);
+    const sscCompany = rSsc.employer;
     const sscTotal = roundHalfUp(sscEmployee + sscCompany, 2);
     const taxWithheld = r.amounts.income_tax || 0;
     const totalDue = roundHalfUp(sscTotal + taxWithheld, 2);
@@ -270,7 +270,7 @@ export const CompanyStatutoryDoc: React.FC<CompanyStatutoryDocProps> = ({
           <div>
             <strong>Social Security Corporation (SSC):</strong>
             <ul className="list-disc list-inside mt-0.5 space-y-0.5">
-              <li>Employer Contribution: 14.25% of insured wages (Old age 11%, Injury 2%, Unemployment 0.75%, Maternity 0.50%).</li>
+              <li>Employer Contribution (since 2017): 14.25% of insured wages (Old age 11%, Work injury 2%, Maternity 0.75%, Unemployment 0.5%). Work-injury-only and youth-reduction employees are calculated at their own rates.</li>
               <li>Employee Deduction: 7.5% of insured wages withheld from salary.</li>
               <li>Total Remittance: 21.75% of insured wage must be remitted by the 15th of the following month.</li>
             </ul>

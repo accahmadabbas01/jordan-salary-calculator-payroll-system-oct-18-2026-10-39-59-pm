@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ruleBranches, SSC_BRANCH_LABELS } from '../../utils/ssc';
 import { Company, AllowanceType, DeductionType, PayrollRuleSet, UserRole } from '../../types';
 import {
   generateBackupWorkbook,
@@ -863,66 +864,179 @@ export const CompanySettingsScreen: React.FC<CompanySettingsScreenProps> = ({
             </div>
           </div>
 
-          <div className="space-y-4">
-            {ruleSets.map((rs, idx) => (
-              <div
-                key={rs.from}
-                className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3"
-              >
-                <div className="flex items-center justify-between font-bold text-slate-900 dark:text-slate-100">
-                  <span className="text-sm">{rs.name}</span>
-                  <span className="font-mono text-slate-500">Applies from: {rs.from}</span>
-                </div>
+          <p className="text-slate-500">
+            {ruleSets.length} periods from 2000 onward. The latest period keeps applying to later years until you
+            add a new one. Ceilings and minimum wages can be edited; changes apply to new calculations.
+          </p>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div>
-                    <span className="text-slate-400 block">SSC Employee Rate:</span>
-                    <span className="font-mono font-semibold">
-                      {(rs.sscRate * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block">SSC Monthly Ceiling:</span>
-                    <span className="font-mono font-semibold">
-                      {formatCurrency(rs.sscCeiling, 'JOD')}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block">Personal Exemption:</span>
-                    <span className="font-mono font-semibold">
-                      {formatCurrency(rs.personalExemption, 'JOD/yr')}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block">Family Exemption:</span>
-                    <span className="font-mono font-semibold">
-                      {formatCurrency(rs.familyExemption, 'JOD/yr')}
-                    </span>
-                  </div>
-                </div>
+          <div className="space-y-3">
+            {[...ruleSets]
+              .sort((a, b) => b.from.localeCompare(a.from))
+              .map((rs) => {
+                const br = ruleBranches(rs);
+                const updateRule = (patch: Partial<PayrollRuleSet>) => {
+                  if (userRole !== 'admin') return;
+                  onUpdateRuleSets(ruleSets.map((r) => (r.from === rs.from ? { ...r, ...patch } : r)));
+                };
+                return (
+                  <details
+                    key={rs.from}
+                    className="rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                  >
+                    <summary className="p-3 cursor-pointer flex flex-wrap items-center justify-between gap-2 font-bold text-slate-900 dark:text-slate-100">
+                      <span className="text-sm">{rs.name}</span>
+                      <span className="flex items-center gap-3 font-mono text-[11px] text-slate-500 font-normal">
+                        {rs.unverified && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-sans font-semibold">
+                            Unconfirmed figures
+                          </span>
+                        )}
+                        <span>
+                          SSC {(rs.sscRate * 100).toFixed(2)}% + {(rs.sscEmployerRate * 100).toFixed(2)}%
+                        </span>
+                        <span>From {rs.from}</span>
+                      </span>
+                    </summary>
 
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Income Tax Brackets (Yearly Taxable Base):
-                  </span>
-                  <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-[11px] font-mono">
-                    {rs.brackets.map((b, bIdx) => (
-                      <div
-                        key={bIdx}
-                        className="p-1.5 bg-white dark:bg-slate-900 border rounded text-center"
-                      >
-                        <div className="text-slate-400">
-                          {b.limit === Infinity ? '> 1,000,000' : `<= ${b.limit}`}
+                    <div className="px-4 pb-4 space-y-3">
+                      {rs.unverified && (
+                        <div className="p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300">
+                          {rs.unverified}
                         </div>
-                        <div className="font-bold text-slate-800 dark:text-slate-200">
-                          {(b.rate * 100).toFixed(0)}%
+                      )}
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <label className="block">
+                          <span className="text-slate-400 block">SSC monthly ceiling (0 = none)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            disabled={userRole !== 'admin'}
+                            value={rs.sscCeiling || 0}
+                            onChange={(e) => updateRule({ sscCeiling: Math.max(0, parseFloat(e.target.value) || 0) })}
+                            className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono font-semibold"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-slate-400 block">Ceiling, insured before May 2010</span>
+                          <input
+                            type="number"
+                            min={0}
+                            disabled={userRole !== 'admin' || !rs.sscLegacyCeiling}
+                            value={rs.sscLegacyCeiling || 0}
+                            onChange={(e) => updateRule({ sscLegacyCeiling: Math.max(0, parseFloat(e.target.value) || 0) })}
+                            className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono font-semibold disabled:opacity-60"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-slate-400 block">Minimum wage (0 = no check)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            disabled={userRole !== 'admin'}
+                            value={rs.minimumWage || 0}
+                            onChange={(e) =>
+                              updateRule({ minimumWage: Math.max(0, parseFloat(e.target.value) || 0) || undefined })
+                            }
+                            className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono font-semibold"
+                          />
+                        </label>
+                        <div>
+                          <span className="text-slate-400 block">Youth reduction (Reg. 45/2024)</span>
+                          <span className="font-mono font-semibold">
+                            {rs.sscYouthReduction
+                              ? `Small -${rs.sscYouthReduction.small * 100}% / Medium -${rs.sscYouthReduction.medium * 100}%`
+                              : 'Not in force'}
+                          </span>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
+
+                      <table className="w-full text-[11px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded">
+                        <thead className="text-slate-500">
+                          <tr className="border-b border-slate-200 dark:border-slate-700">
+                            <th className="p-1.5 text-left">SSC insurance branch</th>
+                            <th className="p-1.5 text-right">Employee</th>
+                            <th className="p-1.5 text-right">Employer</th>
+                          </tr>
+                        </thead>
+                        <tbody className="font-mono">
+                          {(Object.keys(SSC_BRANCH_LABELS) as (keyof typeof SSC_BRANCH_LABELS)[]).map((k) => (
+                            <tr key={k} className="border-b border-slate-100 dark:border-slate-800">
+                              <td className="p-1.5 font-sans">
+                                {SSC_BRANCH_LABELS[k].en}{' '}
+                                <span className="font-arabic text-slate-400">· {SSC_BRANCH_LABELS[k].ar}</span>
+                              </td>
+                              <td className="p-1.5 text-right">{(br.employee[k] * 100).toFixed(2)}%</td>
+                              <td className="p-1.5 text-right">{(br.employer[k] * 100).toFixed(2)}%</td>
+                            </tr>
+                          ))}
+                          <tr className="font-bold">
+                            <td className="p-1.5 font-sans">Total</td>
+                            <td className="p-1.5 text-right">{(rs.sscRate * 100).toFixed(2)}%</td>
+                            <td className="p-1.5 text-right">{(rs.sscEmployerRate * 100).toFixed(2)}%</td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Income tax</span>
+                        {rs.taxManual ? (
+                          <span className="text-slate-500">
+                            Not calculated for this period — enter income tax manually.
+                          </span>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
+                              <div>
+                                <span className="text-slate-400 block">Personal exemption</span>
+                                <span className="font-mono font-semibold">
+                                  {formatCurrency(rs.personalExemption, 'JOD/yr')}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block">Dependants exemption</span>
+                                <span className="font-mono font-semibold">
+                                  {formatCurrency(rs.familyExemption, 'JOD/yr')}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block">Additional exemptions max</span>
+                                <span className="font-mono font-semibold">
+                                  {formatCurrency(rs.documentedExpensesMax, 'JOD/yr')}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block">National contribution</span>
+                                <span className="font-mono font-semibold">
+                                  {rs.nationalContribution
+                                    ? `${rs.nationalContribution.rate * 100}% above ${rs.nationalContribution.threshold.toLocaleString()}`
+                                    : 'None'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-[11px] font-mono">
+                              {rs.brackets.map((b, bIdx) => {
+                                const prev = bIdx === 0 ? 0 : rs.brackets[bIdx - 1].limit;
+                                const open = b.limit == null || b.limit === Infinity;
+                                return (
+                                  <div key={bIdx} className="p-1.5 bg-white dark:bg-slate-900 border rounded text-center">
+                                    <div className="text-slate-400">
+                                      {open ? `> ${Number(prev).toLocaleString()}` : `≤ ${b.limit.toLocaleString()}`}
+                                    </div>
+                                    <div className="font-bold text-slate-800 dark:text-slate-200">
+                                      {(b.rate * 100).toFixed(0)}%
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </details>
+                );
+              })}
           </div>
         </div>
       )}

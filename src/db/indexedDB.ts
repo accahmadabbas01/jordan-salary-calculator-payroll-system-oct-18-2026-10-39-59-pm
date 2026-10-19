@@ -11,7 +11,8 @@ import {
   EmailSettings,
   PayrollRuleSet,
 } from '../types';
-import { DEFAULT_RULE_SETS, calculatePayroll } from '../utils/calculator';
+import { DEFAULT_RULE_SETS, calculatePayroll, setActiveRuleSets } from '../utils/calculator';
+import { mergeRuleSets } from '../utils/jordanRules';
 import { hashPassword } from '../utils/crypto';
 
 const DB_NAME = 'JordanSalaryCalculatorDB';
@@ -186,13 +187,13 @@ export async function logActivity(
 // Initialize default rule sets if not present
 export async function initRules(): Promise<PayrollRuleSet[]> {
   const existing = await getAllFromStore<PayrollRuleSet>('rule_sets');
-  if (existing.length === 0) {
-    for (const rule of DEFAULT_RULE_SETS) {
-      await putInStore('rule_sets', rule);
-    }
-    return DEFAULT_RULE_SETS;
+  // Adds new periods/fields from app updates while keeping the user's edits.
+  const merged = mergeRuleSets(existing);
+  if (JSON.stringify(merged) !== JSON.stringify(existing)) {
+    await putManyInStore('rule_sets', merged);
   }
-  return existing;
+  setActiveRuleSets(merged);
+  return merged;
 }
 
 // Check if any admin exists
