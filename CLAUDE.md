@@ -32,7 +32,8 @@ payslips, ISTD certificates). Deployed on Vercel. UI text is English with Arabic
 | Maternity leave rules | `src/utils/maternity.ts` + `screens/MaternityLeaveScreen.tsx` |
 | Excel import/export | `src/utils/excel.ts` + `common/ExcelImportExportModal.tsx` |
 | Smart Import (any sheet/email → monthly inputs) | `src/utils/smartImport.ts` + `common/SmartImportModal.tsx` |
-| PDF export (html2canvas-pro + jsPDF) | `src/utils/pdf.ts` |
+| PDF export (html2canvas-pro + jsPDF; `password` option = 40-bit RC4) | `src/utils/pdf.ts` |
+| Payslip PDF passwords (pattern or generated, per employee & month) | `src/utils/payslipPassword.ts` + `common/PayslipPasswordPanel.tsx` |
 | Documents (payslip, QP 177-F3 certificate, clearance, statutory) | `src/components/documents/` |
 | Company allowance/deduction type picker | `src/components/common/ItemTypePicker.tsx` |
 | Sample data | `seedSampleCompanies` in `indexedDB.ts`; `src/db/seedFullTest.ts`; `src/utils/testSamples.ts` |

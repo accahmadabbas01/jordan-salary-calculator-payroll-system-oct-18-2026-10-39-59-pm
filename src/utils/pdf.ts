@@ -57,21 +57,29 @@ async function renderCanvas(element: HTMLElement): Promise<HTMLCanvasElement> {
   }
 }
 
-export async function generatePdfBlob(
-  element: HTMLElement,
-  options?: { orientation?: 'p' | 'l'; format?: 'a4' }
-): Promise<Blob> {
-  const orientation = options?.orientation || 'p';
-  const format = options?.format || 'a4';
+export interface PdfOptions {
+  orientation?: 'p' | 'l';
+  format?: 'a4';
+  /** Password needed to open the PDF (standard 40-bit RC4 PDF encryption) */
+  password?: string;
+}
 
+/** jsPDF options, adding encryption when a password is given. */
+function pdfInit(options?: PdfOptions) {
+  const init: any = { orientation: options?.orientation || 'p', unit: 'mm', format: options?.format || 'a4' };
+  if (options?.password) {
+    // A random owner password stops readers from lifting the restrictions; printing stays allowed.
+    const owner = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+    init.encryption = { userPassword: options.password, ownerPassword: owner, userPermissions: ['print'] };
+  }
+  return init;
+}
+
+export async function generatePdfBlob(element: HTMLElement, options?: PdfOptions): Promise<Blob> {
   const canvas = await renderCanvas(element);
 
   const imgData = canvas.toDataURL('image/jpeg', 0.98);
-  const pdf = new jsPDF({
-    orientation,
-    unit: 'mm',
-    format,
-  });
+  const pdf = new jsPDF(pdfInit(options));
 
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -99,11 +107,7 @@ export async function generatePdfBlob(
   return pdf.output('blob');
 }
 
-export async function exportHtmlToPdf(
-  element: HTMLElement,
-  filename: string,
-  options?: { orientation?: 'p' | 'l'; format?: 'a4' }
-): Promise<Blob> {
+export async function exportHtmlToPdf(element: HTMLElement, filename: string, options?: PdfOptions): Promise<Blob> {
   const blob = await generatePdfBlob(element, options);
   downloadBlob(blob, filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
   return blob;
@@ -112,16 +116,9 @@ export async function exportHtmlToPdf(
 export async function exportMultipleHtmlToPdf(
   elements: HTMLElement[],
   filename: string,
-  options?: { orientation?: 'p' | 'l'; format?: 'a4' }
+  options?: PdfOptions
 ): Promise<Blob> {
-  const orientation = options?.orientation || 'p';
-  const format = options?.format || 'a4';
-
-  const pdf = new jsPDF({
-    orientation,
-    unit: 'mm',
-    format,
-  });
+  const pdf = new jsPDF(pdfInit(options));
 
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const pdfHeight = pdf.internal.pageSize.getHeight();

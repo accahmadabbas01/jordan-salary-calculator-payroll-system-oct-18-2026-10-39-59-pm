@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { getPayslipPassword } from '../../utils/payslipPassword';
 import { AddFromTypesMenu, TypeSelect, describeType, findType, typeAmount } from '../common/ItemTypePicker';
 import { CommentsButton } from '../common/Comments';
 import { maternityDeductionFor } from '../../utils/maternity';
@@ -1244,9 +1245,11 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
                   onClick={async () => {
                     const el = document.getElementById('salary-entry-payslip-doc');
                     if (el) {
+                      const pw = await getPayslipPassword(company, currentEmployee, year, month);
                       await exportHtmlToPdf(
                         el,
-                        `SalarySlip_${currentEmployee.name.replace(/\s+/g, '_')}_${year}_${month}.pdf`
+                        `SalarySlip_${currentEmployee.name.replace(/\s+/g, '_')}_${year}_${month}.pdf`,
+                        { password: pw?.password }
                       );
                     }
                   }}

@@ -5,6 +5,7 @@
  */
 
 import { Company, Employee, SalaryRecord } from '../types';
+import { passwordHintForEmail } from './payslipPassword';
 import { formatCurrency, getMonthName } from './calculator';
 import { generatePdfBlob } from './pdf';
 
@@ -141,6 +142,23 @@ ${company.address || 'Amman, Jordan'}
   </div>
 </body>
 </html>`;
+
+  // Tell the employee how to open a password-protected payslip (never the password itself)
+  const hint = passwordHintForEmail(company);
+  if (hint) {
+    const text = textBody.replace(
+      `${monthName} ${record.year} from ${company.name}.`,
+      `${monthName} ${record.year} from ${company.name}.
+
+${hint}`
+    );
+    const html = htmlBody.replace(
+      '</body>',
+      `<p style="margin:16px 0;padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;font-family:Arial,sans-serif;font-size:13px;color:#9a3412">🔒 ${hint}</p>
+</body>`
+    );
+    return { subject, textBody: text, htmlBody: html };
+  }
 
   return { subject, textBody, htmlBody };
 }
