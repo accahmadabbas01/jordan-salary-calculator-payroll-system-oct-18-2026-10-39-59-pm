@@ -36,6 +36,7 @@ interface CompanySettingsScreenProps {
   onFullJSONRestore: (jsonData: any) => Promise<void>;
   onSeedSampleCompanies: () => Promise<void>;
   onSeedFullTest: () => Promise<void>;
+  initialTab?: 'profile' | 'types' | 'data' | 'rules';
   getFullDataForBackup: () => Promise<{
     companies: any[];
     employees: any[];
@@ -60,10 +61,11 @@ export const CompanySettingsScreen: React.FC<CompanySettingsScreenProps> = ({
   onFullJSONRestore,
   onSeedSampleCompanies,
   onSeedFullTest,
+  initialTab = 'profile',
   getFullDataForBackup,
   onUpdateRuleSets,
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'types' | 'data' | 'rules'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'types' | 'data' | 'rules'>(initialTab);
 
   // Company Profile State
   const [name, setName] = useState(currentCompany.name);

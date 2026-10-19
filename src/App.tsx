@@ -117,6 +117,8 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [excelType, setExcelType] = useState<ScreenImportExportType | null>(null);
+  // Which Company Settings tab to open (e.g. "types" from Salary Entry)
+  const [settingsTab, setSettingsTab] = useState<'profile' | 'types' | 'data' | 'rules'>('profile');
 
   // Initial Load from IndexedDB
   const refreshAllData = useCallback(async () => {
@@ -1059,7 +1061,10 @@ export default function App() {
       {/* Sidebar Navigation */}
       <Sidebar
         currentScreen={currentScreen}
-        onNavigate={handleNavigate}
+        onNavigate={(screen) => {
+          if (screen === 'company_settings') setSettingsTab('profile');
+          handleNavigate(screen);
+        }}
         userRole={currentUser.role}
         isOpenMobile={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
@@ -1196,6 +1201,11 @@ export default function App() {
                 onSaveRecord={handleSaveRecord}
                 onDeleteRecord={handleDeleteRecord}
                 onEmailPayslip={handleEmailPayslip}
+                onUpdateCompany={handleUpdateCompany}
+                onManageTypes={() => {
+                  setSettingsTab('types');
+                  handleNavigate('company_settings');
+                }}
               />
             )}
 
@@ -1299,6 +1309,8 @@ export default function App() {
 
             {currentScreen === 'company_settings' && currentCompany && (
               <CompanySettingsScreen
+                key={settingsTab}
+                initialTab={settingsTab}
                 currentCompany={currentCompany}
                 allCompanies={accessibleCompanies}
                 ruleSets={ruleSets}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { AddFromTypesMenu, TypeSelect, describeType, findType, typeAmount } from '../common/ItemTypePicker';
 import { CommentsButton } from '../common/Comments';
 import { maternityDeductionFor } from '../../utils/maternity';
 import {
@@ -54,6 +55,8 @@ interface SalaryEntryScreenProps {
   onSaveRecord: (record: SalaryRecord) => void;
   onDeleteRecord: (recordId: string) => void;
   onEmailPayslip?: (record: SalaryRecord) => void;
+  onUpdateCompany?: (company: Company) => void;
+  onManageTypes?: () => void;
 }
 
 export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
@@ -70,6 +73,8 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
   onSaveRecord,
   onDeleteRecord,
   onEmailPayslip,
+  onUpdateCompany,
+  onManageTypes,
 }) => {
   const currentEmployee = employees.find((e) => e.empId === selectedEmpId) || employees[0];
   const empId = currentEmployee?.empId || '';
@@ -381,32 +386,24 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
     }
   };
 
-  // Add allowance
-  const handleAddAllowance = () => {
-    const firstType = company.allowanceTypes[0];
-    setEarnings([
-      ...earnings,
-      {
-        name: firstType?.name || 'Mobile Allowance',
-        amount: firstType?.value || 30,
-        taxable: firstType ? firstType.taxable : true,
-        ssc: firstType ? firstType.ssc : true,
-      },
-    ]);
-  };
-
-  // Add deduction
-  const handleAddDeduction = () => {
-    const firstType = company.deductionTypes[0];
-    setDeductions([
-      ...deductions,
-      {
-        name: firstType?.name || 'Health Insurance',
-        amount: firstType?.value || 25,
-        preTax: firstType ? firstType.preTax : true,
-      },
-    ]);
-  };
+  // Breakdown of the additional items
+  const allowanceTotals = earnings.reduce(
+    (t, e) => ({
+      total: t.total + (e.amount || 0),
+      taxable: t.taxable + (e.taxable ? e.amount || 0 : 0),
+      ssc: t.ssc + (e.ssc ? e.amount || 0 : 0),
+    }),
+    { total: 0, taxable: 0, ssc: 0 }
+  );
+  const deductionTotals = deductions.reduce(
+    (t, d) => ({
+      total: t.total + (d.amount || 0),
+      preTax: t.preTax + (d.preTax ? d.amount || 0 : 0),
+      loans: t.loans + (d.loanId ? d.amount || 0 : 0),
+      maternity: t.maternity + (d.maternityDays ? d.amount || 0 : 0),
+    }),
+    { total: 0, preTax: 0, loans: 0, maternity: 0 }
+  );
 
   // Handle Save
   const handleSave = () => {
@@ -729,96 +726,135 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
           <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
-                Additional Allowances
+                Additional Allowances <span className="font-arabic font-normal text-slate-400">· علاوات إضافية</span>
               </span>
-              <button
-                type="button"
-                onClick={handleAddAllowance}
-                className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 font-medium hover:underline"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Item</span>
-              </button>
+              <AddFromTypesMenu
+                label="Add allowance"
+                types={company.allowanceTypes}
+                basic={amounts.basic || 0}
+                onManageTypes={onManageTypes}
+                onPick={(t) =>
+                  setEarnings([
+                    ...earnings,
+                    { name: t.name, amount: typeAmount(t, amounts.basic || 0), taxable: t.taxable, ssc: t.ssc },
+                  ])
+                }
+                onCustom={() => setEarnings([...earnings, { name: '', amount: 0, taxable: true, ssc: true }])}
+              />
             </div>
 
-            {earnings.map((e, idx) => (
-              <div
-                key={idx}
-                className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-200 dark:border-slate-700 text-xs"
-              >
-                <input
-                  type="text"
-                  list="salary-entry-allowances-datalist"
-                  placeholder="Allowance Name..."
-                  value={e.name}
-                  onChange={(ev) => {
-                    const val = ev.target.value;
-                    const chosen = company.allowanceTypes.find(
-                      (t) => t.name.toLowerCase() === val.toLowerCase()
-                    );
-                    const updated = [...earnings];
-                    updated[idx] = {
-                      ...updated[idx],
-                      name: val,
-                      taxable: chosen ? chosen.taxable : updated[idx].taxable,
-                      ssc: chosen ? chosen.ssc : updated[idx].ssc,
-                    };
-                    setEarnings(updated);
-                  }}
-                  className="w-2/5 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-medium"
-                />
-                <datalist id="salary-entry-allowances-datalist">
-                  {company.allowanceTypes.map((t) => (
-                    <option key={t.name} value={t.name} />
-                  ))}
-                </datalist>
+            {earnings.length === 0 && (
+              <div className="text-[11px] text-slate-400">No additional allowances this month.</div>
+            )}
 
-                <input
-                  type="text"
-                  value={e.amount}
-                  onChange={(ev) => {
-                    const updated = [...earnings];
-                    updated[idx].amount = parseArabicIndicNumber(ev.target.value);
-                    setEarnings(updated);
-                  }}
-                  className="w-24 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono text-xs"
-                />
-
-                <label className="flex items-center gap-1 text-[11px] text-slate-500">
-                  <input
-                    type="checkbox"
-                    checked={e.taxable}
-                    onChange={(ev) => {
-                      const updated = [...earnings];
-                      updated[idx].taxable = ev.target.checked;
-                      setEarnings(updated);
-                    }}
-                  />
-                  <span>Tax</span>
-                </label>
-
-                <label className="flex items-center gap-1 text-[11px] text-slate-500">
-                  <input
-                    type="checkbox"
-                    checked={e.ssc}
-                    onChange={(ev) => {
-                      const updated = [...earnings];
-                      updated[idx].ssc = ev.target.checked;
-                      setEarnings(updated);
-                    }}
-                  />
-                  <span>SSC</span>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => setEarnings(earnings.filter((_, i) => i !== idx))}
-                  className="text-slate-400 hover:text-rose-600 ml-auto p-1"
+            {earnings.map((e, idx) => {
+              const type = findType(company.allowanceTypes, e.name);
+              const def = type ? typeAmount(type, amounts.basic || 0) : null;
+              const update = (patch: Partial<SalaryEarningItem>) => {
+                const updated = [...earnings];
+                updated[idx] = { ...updated[idx], ...patch };
+                setEarnings(updated);
+              };
+              return (
+                <div
+                  key={idx}
+                  className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-200 dark:border-slate-700 text-xs space-y-1"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                  <div className="flex items-center gap-2">
+                    <TypeSelect
+                      types={company.allowanceTypes}
+                      name={type ? e.name : ''}
+                      className="w-36"
+                      onChange={(t) =>
+                        update(
+                          t
+                            ? { name: t.name, amount: typeAmount(t, amounts.basic || 0), taxable: t.taxable, ssc: t.ssc }
+                            : { name: '' }
+                        )
+                      }
+                    />
+                    {!type && (
+                      <input
+                        type="text"
+                        dir="auto"
+                        placeholder="Custom allowance name"
+                        value={e.name}
+                        onChange={(ev) => update({ name: ev.target.value })}
+                        className="flex-1 min-w-0 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-medium"
+                      />
+                    )}
+                    <input
+                      type="text"
+                      value={e.amount}
+                      onChange={(ev) => update({ amount: parseArabicIndicNumber(ev.target.value) })}
+                      className={`w-24 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono text-xs ${type ? 'ml-auto' : ''}`}
+                    />
+                    <label className="flex items-center gap-1 text-[11px] text-slate-500" title="Subject to income tax">
+                      <input type="checkbox" checked={e.taxable} onChange={(ev) => update({ taxable: ev.target.checked })} />
+                      <span>Tax</span>
+                    </label>
+                    <label className="flex items-center gap-1 text-[11px] text-slate-500" title="Subject to Social Security">
+                      <input type="checkbox" checked={e.ssc} onChange={(ev) => update({ ssc: ev.target.checked })} />
+                      <span>SSC</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEarnings(earnings.filter((_, i) => i !== idx))}
+                      className="text-slate-400 hover:text-rose-600 p-1"
+                      title="Remove"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 text-[10px] text-slate-500 pl-0.5">
+                    {type ? (
+                      <>
+                        <span>Company type · {describeType(type)}</span>
+                        {def !== null && Math.abs(def - (e.amount || 0)) > 0.004 && (
+                          <button type="button" onClick={() => update({ amount: def })} className="text-blue-600 dark:text-blue-400 hover:underline">
+                            Use default {def.toFixed(2)}
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span>Custom item this month only</span>
+                        {onUpdateCompany && e.name.trim() && userRole !== 'viewer' && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onUpdateCompany({
+                                ...company,
+                                allowanceTypes: [
+                                  ...company.allowanceTypes,
+                                  { name: e.name.trim(), method: 'fixed', value: e.amount || 0, taxable: e.taxable, ssc: e.ssc },
+                                ],
+                              })
+                            }
+                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Save as company type
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {earnings.length > 0 && (
+              <div className="p-2 rounded bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 text-[11px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">Additional allowances total</span>
+                <span className="text-right font-mono font-semibold">{formatCurrency(allowanceTotals.total, '')}</span>
+                <span className="text-slate-500">Taxable / tax-free</span>
+                <span className="text-right font-mono text-slate-600 dark:text-slate-300">
+                  {formatCurrency(allowanceTotals.taxable, '')} / {formatCurrency(allowanceTotals.total - allowanceTotals.taxable, '')}
+                </span>
+                <span className="text-slate-500">Subject to SSC</span>
+                <span className="text-right font-mono text-slate-600 dark:text-slate-300">{formatCurrency(allowanceTotals.ssc, '')}</span>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -933,96 +969,144 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
           <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
-                Additional Deductions & Loans
+                Additional Deductions & Loans <span className="font-arabic font-normal text-slate-400">· اقتطاعات إضافية</span>
               </span>
-              <button
-                type="button"
-                onClick={handleAddDeduction}
-                className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 font-medium hover:underline"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Item</span>
-              </button>
+              <AddFromTypesMenu
+                label="Add deduction"
+                types={company.deductionTypes}
+                basic={amounts.basic || 0}
+                onManageTypes={onManageTypes}
+                onPick={(t) =>
+                  setDeductions([...deductions, { name: t.name, amount: typeAmount(t, amounts.basic || 0), preTax: t.preTax }])
+                }
+                onCustom={() => setDeductions([...deductions, { name: '', amount: 0, preTax: false }])}
+              />
             </div>
 
-            {deductions.map((d, idx) => (
-              <div
-                key={idx}
-                className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-200 dark:border-slate-700 text-xs"
-              >
-                {d.loanId ? (
-                  <div className="w-2/5 flex items-center gap-1.5 truncate">
-                    <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
-                      {d.name}
-                    </span>
-                    <span className="text-[10px] px-1 py-0.2 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 font-mono">
-                      loan
-                    </span>
-                  </div>
-                ) : (
-                  <div className="w-2/5">
+            {deductions.length === 0 && (
+              <div className="text-[11px] text-slate-400">No additional deductions or loan installments this month.</div>
+            )}
+
+            {deductions.map((d, idx) => {
+              const type = d.loanId || d.maternityDays ? undefined : findType(company.deductionTypes, d.name);
+              const def = type ? typeAmount(type, amounts.basic || 0) : null;
+              const fixedRow = !!d.loanId || !!d.maternityDays;
+              const update = (patch: Partial<SalaryDeductionItem>) => {
+                const updated = [...deductions];
+                updated[idx] = { ...updated[idx], ...patch };
+                setDeductions(updated);
+              };
+              return (
+                <div
+                  key={idx}
+                  className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-200 dark:border-slate-700 text-xs space-y-1"
+                >
+                  <div className="flex items-center gap-2">
+                    {fixedRow ? (
+                      <div className="flex-1 min-w-0 flex items-center gap-1.5 truncate">
+                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate">{d.name}</span>
+                        <span className="text-[10px] px-1 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 font-mono">
+                          {d.loanId ? 'loan' : 'maternity'}
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <TypeSelect
+                          types={company.deductionTypes}
+                          name={type ? d.name : ''}
+                          className="w-36"
+                          onChange={(t) =>
+                            update(t ? { name: t.name, amount: typeAmount(t, amounts.basic || 0), preTax: t.preTax } : { name: '' })
+                          }
+                        />
+                        {!type && (
+                          <input
+                            type="text"
+                            dir="auto"
+                            placeholder="Custom deduction name"
+                            value={d.name}
+                            onChange={(ev) => update({ name: ev.target.value })}
+                            className="flex-1 min-w-0 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-medium"
+                          />
+                        )}
+                      </>
+                    )}
                     <input
                       type="text"
-                      list="salary-entry-deductions-datalist"
-                      placeholder="Deduction Name..."
-                      value={d.name}
-                      onChange={(ev) => {
-                        const val = ev.target.value;
-                        const chosen = company.deductionTypes.find(
-                          (t) => t.name.toLowerCase() === val.toLowerCase()
-                        );
-                        const updated = [...deductions];
-                        updated[idx] = {
-                          ...updated[idx],
-                          name: val,
-                          preTax: chosen ? chosen.preTax : updated[idx].preTax,
-                        };
-                        setDeductions(updated);
-                      }}
-                      className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-medium"
+                      value={d.amount}
+                      onChange={(ev) => update({ amount: parseArabicIndicNumber(ev.target.value) })}
+                      className={`w-24 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono text-xs ${type ? 'ml-auto' : ''}`}
                     />
-                    <datalist id="salary-entry-deductions-datalist">
-                      {company.deductionTypes.map((t) => (
-                        <option key={t.name} value={t.name} />
-                      ))}
-                    </datalist>
+                    <label className="flex items-center gap-1 text-[11px] text-slate-500" title="Deducted before income tax is calculated">
+                      <input type="checkbox" checked={d.preTax} disabled={fixedRow} onChange={(ev) => update({ preTax: ev.target.checked })} />
+                      <span>Pre-tax</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setDeductions(deductions.filter((_, i) => i !== idx))}
+                      className="text-slate-400 hover:text-rose-600 p-1"
+                      title="Remove"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
+                  <div className="flex flex-wrap items-center gap-x-3 text-[10px] text-slate-500 pl-0.5">
+                    {d.loanId ? (
+                      <span>Staff loan installment (from Loans)</span>
+                    ) : d.maternityDays ? (
+                      <span>{d.maternityDays} maternity leave day(s) paid by SSC — not paid as salary</span>
+                    ) : type ? (
+                      <>
+                        <span>Company type · {describeType(type)}</span>
+                        {def !== null && Math.abs(def - (d.amount || 0)) > 0.004 && (
+                          <button type="button" onClick={() => update({ amount: def })} className="text-blue-600 dark:text-blue-400 hover:underline">
+                            Use default {def.toFixed(2)}
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span>Custom item this month only</span>
+                        {onUpdateCompany && d.name.trim() && userRole !== 'viewer' && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onUpdateCompany({
+                                ...company,
+                                deductionTypes: [
+                                  ...company.deductionTypes,
+                                  { name: d.name.trim(), method: 'fixed', value: d.amount || 0, preTax: d.preTax },
+                                ],
+                              })
+                            }
+                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Save as company type
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {deductions.length > 0 && (
+              <div className="p-2 rounded bg-rose-50/70 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900 text-[11px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">Additional deductions total</span>
+                <span className="text-right font-mono font-semibold">{formatCurrency(deductionTotals.total, '')}</span>
+                <span className="text-slate-500">Before tax (reduce taxable income)</span>
+                <span className="text-right font-mono text-slate-600 dark:text-slate-300">{formatCurrency(deductionTotals.preTax, '')}</span>
+                <span className="text-slate-500">Loan installments</span>
+                <span className="text-right font-mono text-slate-600 dark:text-slate-300">{formatCurrency(deductionTotals.loans, '')}</span>
+                {deductionTotals.maternity > 0 && (
+                  <>
+                    <span className="text-slate-500">Maternity leave days (paid by SSC)</span>
+                    <span className="text-right font-mono text-slate-600 dark:text-slate-300">{formatCurrency(deductionTotals.maternity, '')}</span>
+                  </>
                 )}
-
-                <input
-                  type="text"
-                  value={d.amount}
-                  onChange={(ev) => {
-                    const updated = [...deductions];
-                    updated[idx].amount = parseArabicIndicNumber(ev.target.value);
-                    setDeductions(updated);
-                  }}
-                  className="w-24 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono text-xs"
-                />
-
-                <label className="flex items-center gap-1 text-[11px] text-slate-500">
-                  <input
-                    type="checkbox"
-                    checked={d.preTax}
-                    disabled={!!d.loanId}
-                    onChange={(ev) => {
-                      const updated = [...deductions];
-                      updated[idx].preTax = ev.target.checked;
-                      setDeductions(updated);
-                    }}
-                  />
-                  <span>Pre-tax</span>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => setDeductions(deductions.filter((_, i) => i !== idx))}
-                  className="text-slate-400 hover:text-rose-600 ml-auto p-1"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
