@@ -1064,6 +1064,22 @@ export const CompanySettingsScreen: React.FC<CompanySettingsScreenProps> = ({
                           </span>
                         ) : (
                           <>
+                            <label className="flex items-start gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5"
+                                disabled={userRole !== 'admin'}
+                                checked={rs.taxDeductEmployeeSsc !== false}
+                                onChange={(e) => updateRule({ taxDeductEmployeeSsc: e.target.checked })}
+                              />
+                              <span>
+                                Deduct the employee's SSC from taxable income
+                                <span className="block text-[10px] text-slate-400">
+                                  Published guides differ (some allow only the employer's SSC, Income Tax Law art. 6) —
+                                  confirm with your tax adviser.
+                                </span>
+                              </span>
+                            </label>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
                               <div>
                                 <span className="text-slate-400 block">Personal exemption</span>
