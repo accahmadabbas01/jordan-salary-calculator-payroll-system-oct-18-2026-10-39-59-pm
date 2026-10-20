@@ -30,6 +30,7 @@ payslips, ISTD certificates). Deployed on Vercel. UI text is English with Arabic
 | Rules by period 2000–2100 (SSC rates/ceilings, tax brackets) | `src/utils/jordanRules.ts` (`DEFAULT_RULE_SETS`, `mergeRuleSets`) |
 | SSC engine (coverage, youth reduction, ceilings, maternity days) | `src/utils/ssc.ts` (`computeSsc`, `recordSsc`) |
 | Maternity leave rules | `src/utils/maternity.ts` + `screens/MaternityLeaveScreen.tsx` |
+| SSC Calculator (port of Jordan_SSC_Calculator.xlsx; import/export with formulas) | `src/utils/sscCalculator.ts` + `screens/SscCalculatorScreen.tsx` |
 | Excel import/export | `src/utils/excel.ts` + `common/ExcelImportExportModal.tsx` |
 | Smart Import (any sheet/email → monthly inputs) | `src/utils/smartImport.ts` + `common/SmartImportModal.tsx` |
 | PDF export (html2canvas-pro + jsPDF; `password` option = 40-bit RC4) | `src/utils/pdf.ts` |
@@ -37,6 +38,11 @@ payslips, ISTD certificates). Deployed on Vercel. UI text is English with Arabic
 | Documents (payslip, QP 177-F3 certificate, clearance, statutory) | `src/components/documents/` |
 | Company allowance/deduction type picker | `src/components/common/ItemTypePicker.tsx` |
 | Sample data | `seedSampleCompanies` in `indexedDB.ts`; `src/db/seedFullTest.ts`; `src/utils/testSamples.ts` |
+
+## Finding code with Graphify
+A code graph is kept in `graphify-out/` (git-ignored). Refresh it after changes with
+`~/.local/bin/graphify.exe update .` (code only, no AI/tokens), then query it instead of searching files:
+`graphify explain "computeSsc"`, `graphify query "where is maternity handled"`, `graphify affected "calcRow"`.
 
 ## Rules to keep
 - Use `getRuleSetForPeriod(year, month)` for rates — never hard-code 7.5% / 14.25% or ceilings.

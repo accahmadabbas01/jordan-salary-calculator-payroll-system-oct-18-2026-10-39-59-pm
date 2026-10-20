@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Graphify code graph (local, regenerate with: graphify update .)
+graphify-out/
