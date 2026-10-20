@@ -140,7 +140,7 @@ export const SscCalculatorScreen: React.FC<Props> = ({ company, employees, recor
         unpaidDays,
         maternityDays,
         unemployment: true,
-        highRisk: false,
+        highRisk: !!emp.sscHighRisk,
         priorContributions,
       });
     }

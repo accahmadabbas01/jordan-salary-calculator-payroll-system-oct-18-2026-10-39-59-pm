@@ -1005,6 +1005,20 @@ export const CompanySettingsScreen: React.FC<CompanySettingsScreenProps> = ({
                             className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono font-semibold"
                           />
                         </label>
+                        <label className="block">
+                          <span className="text-slate-400 block">High-risk extra, employer % (مهنة خطرة)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.25}
+                            disabled={userRole !== 'admin'}
+                            value={Math.round((rs.sscHighRiskExtra || 0) * 10000) / 100}
+                            onChange={(e) =>
+                              updateRule({ sscHighRiskExtra: Math.max(0, parseFloat(e.target.value) || 0) / 100 || undefined })
+                            }
+                            className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono font-semibold"
+                          />
+                        </label>
                         <div>
                           <span className="text-slate-400 block">Youth reduction (Reg. 45/2024)</span>
                           <span className="font-mono font-semibold">

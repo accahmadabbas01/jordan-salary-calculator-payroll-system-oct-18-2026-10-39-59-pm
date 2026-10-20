@@ -5,7 +5,7 @@
  *  T002 maternity leave from 16 Aug 2026, eligible (SSC pays)
  *  T003 under 30, first job, youth old-age reduction (small establishment)
  *  T004 old-age pensioner over 60, work-injury insurance only
- *  T005 non-Jordanian on a passport, overtime every other month, 2 absence days in October
+ *  T005 non-Jordanian on a passport, high-risk occupation (employer 15.25%), overtime, 2 absence days in October
  *  T006 not subject to Social Security (consultant)
  *  T007 resigned 30 Jun 2026, completed clearance spanning all three end-of-service periods
  *  T008 maternity leave from 10 Sep 2026, NOT eligible (too few contributions) — employer pays
@@ -92,7 +92,7 @@ export function buildFullTestCompany(): { company: Company; employees: Employee[
     }),
     emp({
       empId: 'T005', name: 'Ravi Kumar', nameAr: 'رافي كومار', title: 'Technician', department: 'Operations',
-      gender: 'male', birthDate: '1990-12-01', hireDate: '2024-03-15', nationalId: 'P8834521', idType: '2', nationality: 'non_jordanian',
+      gender: 'male', birthDate: '1990-12-01', hireDate: '2024-03-15', nationalId: 'P8834521', idType: '2', nationality: 'non_jordanian', sscHighRisk: true,
       package: { basic: 420, housing: 80, transport: 0, other_allow: 0 }, allowances: [SHIFT],
     }),
     emp({

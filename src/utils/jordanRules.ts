@@ -8,6 +8,7 @@
  *    reaching 11% / 6.5% on 1 Jan 2017. Totals since 2017: employee 7.5%, employer 14.25%.
  *  - Monthly wage ceiling, indexed to inflation each year. People insured before 1 May 2010 keep a
  *    5,000 JOD ceiling.
+ *  - High-risk occupations (from 2014): employer pays an extra 1% (employer 15.25%, employee 7.5%).
  *  - Regulation 45/2024: employer old-age share reduced 40% (small, <=25 staff) or 30% (medium, 26-50)
  *    for Jordanians under 30 insured for the first time.
  *
@@ -86,6 +87,8 @@ const TAX_2020 = {
 };
 
 const YOUTH_REDUCTION = { small: 0.4, medium: 0.3 };
+/** High-risk occupations: employer pays 1% more old-age contribution (employer total 15.25%) */
+const HIGH_RISK_EXTRA = 0.01;
 const UNCONFIRMED_CEILING =
   'The SSC wage ceiling for this year could not be confirmed from an official source (3,084 JOD from 2015 is used). Edit it if you know the official figure.';
 
@@ -106,6 +109,7 @@ function rule(
     sscEmployee: ssc.employee,
     sscEmployer: ssc.employer,
     sscLegacyCeiling: from >= '2010-05-01' ? 5000 : undefined,
+    sscHighRiskExtra: from >= '2014-01-01' ? HIGH_RISK_EXTRA : undefined,
     ...(tax as any),
     ...extra,
   };
