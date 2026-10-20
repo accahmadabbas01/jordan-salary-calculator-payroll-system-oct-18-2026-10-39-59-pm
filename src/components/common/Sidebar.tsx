@@ -17,6 +17,7 @@ import {
   Baby,
   MessagesSquare,
   Percent,
+  Receipt,
 } from 'lucide-react';
 
 export type ScreenId =
@@ -32,6 +33,7 @@ export type ScreenId =
   | 'maternity'
   | 'team_notes'
   | 'ssc_calculator'
+  | 'tax_calculator'
   | 'reports'
   | 'company_settings'
   | 'users'
@@ -64,6 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'clearances', labelEn: 'Clearances', labelAr: 'براءة الذمة', icon: UserMinus },
     { id: 'maternity', labelEn: 'Maternity Leave', labelAr: 'إجازة الأمومة', icon: Baby },
     { id: 'ssc_calculator', labelEn: 'SSC Calculator', labelAr: 'حاسبة الضمان', icon: Percent },
+    { id: 'tax_calculator', labelEn: 'Income Tax Calculator', labelAr: 'حاسبة ضريبة الدخل', icon: Receipt },
     { id: 'reports', labelEn: 'Reports', labelAr: 'التقارير', icon: BarChart3 },
     { id: 'team_notes', labelEn: 'Team Notes', labelAr: 'ملاحظات الفريق', icon: MessagesSquare },
     { id: 'company_settings', labelEn: 'Company Settings', labelAr: 'إعدادات الشركة', icon: Settings },

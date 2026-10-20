@@ -347,6 +347,8 @@ export interface PayrollRuleSet {
   sscHighRiskExtra?: number;
   /** Employer old-age share reduction for under-30 first-time insured (Reg. 45/2024) */
   sscYouthReduction?: { small: number; medium: number };
+  /** Employee SSC reduces taxable income (default true; sources differ — see Payroll Rules) */
+  taxDeductEmployeeSsc?: boolean;
   /** Income tax is not modelled for this period: enter it manually */
   taxManual?: boolean;
   /** National contribution on annual taxable income above threshold (from 2019) */

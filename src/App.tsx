@@ -53,6 +53,7 @@ import { ClearancesScreen } from './components/screens/ClearancesScreen';
 import { MaternityLeaveScreen } from './components/screens/MaternityLeaveScreen';
 import { TeamNotesScreen } from './components/screens/TeamNotesScreen';
 import { SscCalculatorScreen } from './components/screens/SscCalculatorScreen';
+import { IncomeTaxCalculatorScreen } from './components/screens/IncomeTaxCalculatorScreen';
 import { CommentsContext } from './components/common/Comments';
 import { ReportsScreen } from './components/screens/ReportsScreen';
 import { CompanySettingsScreen } from './components/screens/CompanySettingsScreen';
@@ -79,6 +80,7 @@ const SCREEN_EXCEL: Record<ScreenId, { type: ScreenImportExportType; label: stri
   maternity: { type: 'salaries', label: 'Salaries' },
   team_notes: { type: 'salaries', label: 'Salaries' },
   ssc_calculator: { type: 'salaries', label: 'Salaries' },
+  tax_calculator: { type: 'salaries', label: 'Salaries' },
   reports: { type: 'salary_history', label: 'Salary History' },
   company_settings: { type: 'full_backup', label: 'Full Workbook' },
   users: { type: 'users', label: 'Users' },
@@ -1293,6 +1295,10 @@ export default function App() {
                 userRole={currentUser.role}
                 onSaveEmployee={handleSaveEmployee}
               />
+            )}
+
+            {currentScreen === 'tax_calculator' && currentCompany && (
+              <IncomeTaxCalculatorScreen company={currentCompany} employees={currentCompanyEmployees} year={year} month={month} />
             )}
 
             {currentScreen === 'ssc_calculator' && currentCompany && (

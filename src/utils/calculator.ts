@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { DEFAULT_RULE_SETS } from './jordanRules';
 import { computeSsc, sscWageBase, SscResult, maternityDaysIn } from './ssc';
+import { computeIncomeTax, IncomeTaxResult } from './incomeTax';
 
 export { DEFAULT_RULE_SETS };
 
@@ -155,6 +156,8 @@ export interface CalculationResult {
   nationalContribution: number;
   /** Full SSC breakdown (rates per branch, coverage, notes); null when no rules apply */
   sscDetail: SscResult | null;
+  /** Full income tax breakdown (exemptions, brackets); null when no rules apply */
+  taxDetail: IncomeTaxResult | null;
 }
 
 /**
@@ -224,6 +227,7 @@ export function calculatePayroll(
       ruleAvailable: false,
       nationalContribution: 0,
       sscDetail: null,
+      taxDetail: null,
     };
   }
 
@@ -257,45 +261,19 @@ export function calculatePayroll(
     (amounts.unpaid_leave || 0) -
     preTaxDeductions;
 
-  const annualIncome = Math.max(monthlyTaxableBase, 0) * 12;
-  const exemptions = Math.min(
-    ruleSet.personalExemption +
-      (hasClaimsFamily ? ruleSet.familyExemption : 0) +
-      Math.min(exemptionExtra, ruleSet.documentedExpensesMax),
-    ruleSet.totalExemptionsCeiling
-  );
-
-  const annualTaxableIncome = Math.max(annualIncome - ssc * 12 - exemptions, 0);
-
-  let incomeTax: number;
-  let taxExplanation: string;
-  let nationalContribution = 0;
-  if (ruleSet.taxManual) {
-    incomeTax = amounts.income_tax || 0;
-    taxExplanation = `Income tax for ${year} is not calculated automatically — enter it manually.`;
-  } else {
-    // Progressive bracket calculation (a null limit comes from JSON and means "no upper limit")
-    let remainingTaxable = annualTaxableIncome;
-    let annualTax = 0;
-    for (let i = 0; i < ruleSet.brackets.length; i++) {
-      const limit = ruleSet.brackets[i].limit ?? Infinity;
-      const prevLimit = i === 0 ? 0 : ruleSet.brackets[i - 1].limit ?? Infinity;
-      const bracketWidth = limit - prevLimit;
-      if (remainingTaxable <= 0) break;
-      const taxableInBracket = Math.min(remainingTaxable, bracketWidth);
-      annualTax += taxableInBracket * ruleSet.brackets[i].rate;
-      remainingTaxable -= taxableInBracket;
-    }
-
-    const nc = ruleSet.nationalContribution;
-    const annualNC = nc ? Math.max(annualTaxableIncome - nc.threshold, 0) * nc.rate : 0;
-    nationalContribution = roundHalfUp(annualNC / 12, 2);
-
-    incomeTax = roundHalfUp((annualTax + annualNC) / 12, 2);
-    taxExplanation = `Income tax: annual taxable income ${formatCurrency(annualTaxableIncome, '')} (annual gross ${formatCurrency(annualIncome, '')} - SSC ${formatCurrency(ssc * 12, '')} - exemptions ${formatCurrency(exemptions, '')}) → annual tax ${formatCurrency(annualTax, '')}${
-      annualNC > 0 ? ` + national contribution ${formatCurrency(annualNC, '')}` : ''
-    } / 12 = ${formatCurrency(incomeTax, '')}.`;
-  }
+  // One-off pay (bonus, other earnings) is taxed in the month it is paid, not annualised.
+  const oneOff = (amounts.bonus || 0) + (amounts.other_earn || 0);
+  const taxResult = computeIncomeTax({
+    ruleSet,
+    monthlyRegular: monthlyTaxableBase - oneOff,
+    oneOff,
+    monthlySsc: ssc,
+    claimsFamily: hasClaimsFamily,
+    documentedExpenses: exemptionExtra,
+  });
+  const incomeTax = taxResult.manual ? amounts.income_tax || 0 : taxResult.monthlyTax;
+  const nationalContribution = taxResult.monthlyNationalContribution;
+  const taxExplanation = taxResult.explanation;
 
   // 4. Total deductions & Net
   const otherDeductionsTotal =
@@ -330,6 +308,7 @@ export function calculatePayroll(
     ruleAvailable: true,
     nationalContribution,
     sscDetail,
+    taxDetail: taxResult,
   };
 }
 
@@ -607,8 +586,8 @@ export function calculateClearanceAmounts(input: ClearanceCalculationInput) {
   const ssc = customDeductions?.ssc !== undefined ? customDeductions.ssc : autoSsc;
 
   // Income tax calculation for clearance:
-  // income_tax = monthTax(0) * part + (lump > 0 ? (monthTax(lump) - monthTax(0)) * 12 : 0)
-  // lump = leave_pay + notice_pay; monthTax(x) = tax of package with other_earn += x/12
+  // income_tax = monthTax * part + (tax with the lump as one-off pay − tax without it)
+  // lump = leave_pay + notice_pay
   const lump = roundHalfUp(leave_pay + notice_pay, 2);
   let autoTax = 0;
   if (lump > 0) {
@@ -616,7 +595,7 @@ export function calculateClearanceAmounts(input: ClearanceCalculationInput) {
       employee,
       lYear,
       lMonth,
-      { ...dummyAmounts, other_earn: roundHalfUp(lump / 12, 2) },
+      { ...dummyAmounts, other_earn: roundHalfUp(lump, 2) },
       dummyEarnings,
       dummyDeductions,
       undefined,
@@ -624,7 +603,7 @@ export function calculateClearanceAmounts(input: ClearanceCalculationInput) {
       customRuleSets
     );
     const taxDiff = Math.max(taxWithLump.incomeTax - baseMonthPayroll.incomeTax, 0);
-    autoTax = roundHalfUp(baseMonthPayroll.incomeTax * part + taxDiff * 12, 2);
+    autoTax = roundHalfUp(baseMonthPayroll.incomeTax * part + taxDiff, 2);
   } else {
     autoTax = roundHalfUp(baseMonthPayroll.incomeTax * part, 2);
   }

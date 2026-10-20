@@ -29,6 +29,7 @@ payslips, ISTD certificates). Deployed on Vercel. UI text is English with Arabic
 | Payroll calculation (gross, SSC, tax, clearance) | `src/utils/calculator.ts` → `calculatePayroll`, `calculateClearanceAmounts` |
 | Rules by period 2000–2100 (SSC rates/ceilings, tax brackets) | `src/utils/jordanRules.ts` (`DEFAULT_RULE_SETS`, `mergeRuleSets`) |
 | SSC engine (coverage, youth reduction, ceilings, maternity days) | `src/utils/ssc.ts` (`computeSsc`, `recordSsc`) |
+| Income tax engine (exemptions, brackets, one-off pay, national contribution) | `src/utils/incomeTax.ts` (`computeIncomeTax`) + `screens/IncomeTaxCalculatorScreen.tsx` |
 | Maternity leave rules | `src/utils/maternity.ts` + `screens/MaternityLeaveScreen.tsx` |
 | SSC Calculator (port of Jordan_SSC_Calculator.xlsx; import/export with formulas) | `src/utils/sscCalculator.ts` + `screens/SscCalculatorScreen.tsx` |
 | Excel import/export | `src/utils/excel.ts` + `common/ExcelImportExportModal.tsx` |
@@ -47,6 +48,7 @@ A code graph is kept in `graphify-out/` (git-ignored). Refresh it after changes 
 ## Rules to keep
 - Use `getRuleSetForPeriod(year, month)` for rates — never hard-code 7.5% / 14.25% or ceilings.
 - Tax brackets may come back from JSON with `limit: null` (was Infinity): treat null as no upper limit.
+- Bonus / other earnings are one-off pay: taxed in their month (tax with − tax without), never ×12.
 - Monthly inputs of kind `salary` must use `SalaryAmounts` keys (`overtime`, `bonus`, `advance`, `unpaid_leave`…).
 - Year pickers use `YEAR_OPTIONS` (2000–2100) from `calculator.ts`.
 - Keep hooks in `App.tsx` above the early returns (loading / sign-in screens).
