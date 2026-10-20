@@ -91,6 +91,7 @@ export function settingsFromRules(rs: PayrollRuleSet | null): SscCalcSettings {
     erWorkInjury: b.employer.workInjury,
     erMaternity: b.employer.maternity,
     erUnemployment: b.employer.unemployment,
+    erHighRisk: rs.sscHighRiskExtra ?? WORKBOOK_DEFAULTS.erHighRisk,
     ceiling: rs.sscCeiling || 0,
     maternityTreatment: 3,
   };

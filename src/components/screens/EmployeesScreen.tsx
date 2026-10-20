@@ -322,6 +322,10 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                           <span className="text-[11px] text-indigo-600 font-sans">Exempt</span>
                         ) : employeeCoverage(emp) === 'injury_only' ? (
                           <span className="text-[11px] text-amber-600 font-sans">Work injury only</span>
+                        ) : emp.sscHighRisk ? (
+                          <span className="text-[11px] text-rose-600 font-sans">
+                            High-risk{emp.sscWage && emp.sscWage > 0 ? ` · ${formatCurrency(emp.sscWage, '')}` : ''}
+                          </span>
                         ) : emp.sscWage && emp.sscWage > 0 ? (
                           formatCurrency(emp.sscWage, '')
                         ) : (
@@ -858,6 +862,24 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                               <option value="male">Male (retirement age 60)</option>
                               <option value="female">Female (retirement age 55)</option>
                             </select>
+                          </div>
+                          <div className="flex items-start gap-2 pt-5">
+                            <input
+                              type="checkbox"
+                              id="chk-sscHighRisk"
+                              checked={!!editingEmployee.sscHighRisk}
+                              disabled={employeeCoverage(editingEmployee) !== 'full'}
+                              onChange={(e) =>
+                                setEditingEmployee({ ...editingEmployee, sscHighRisk: e.target.checked })
+                              }
+                              className="w-4 h-4 mt-0.5 text-slate-900 rounded border-slate-300"
+                            />
+                            <label htmlFor="chk-sscHighRisk" className="text-slate-700 dark:text-slate-300 font-medium">
+                              High-risk occupation <span className="font-arabic">(مهنة خطرة)</span>
+                              <span className="block text-[10px] font-normal text-slate-400">
+                                Employee 7.5% · employer 15.25% (+1%)
+                              </span>
+                            </label>
                           </div>
                           <div className="flex items-start gap-2 pt-5">
                             <input

@@ -97,6 +97,8 @@ export interface Employee {
   sscExempt?: boolean; // not subject to SSC (kept for older data; same as sscCoverage 'exempt')
   /** full = all insurances; injury_only = work-injury only (e.g. old-age pensioner past retirement age); exempt = none */
   sscCoverage?: SscCoverage;
+  /** High-risk occupation (مهنة خطرة): employer pays an extra old-age contribution (+1%) */
+  sscHighRisk?: boolean;
   /** Insured at SSC before 1 May 2010: the 5,000 JOD legacy wage ceiling applies */
   sscInsuredBefore2010?: boolean;
   /** Regulation 45/2024 old-age reduction for first-time insured Jordanians under 30 */
@@ -341,6 +343,8 @@ export interface PayrollRuleSet {
   sscLegacyCeiling?: number;
   /** National minimum wage — insured wage should not be lower */
   minimumWage?: number;
+  /** Extra employer rate for high-risk occupations (e.g. 0.01 → employer 15.25%) */
+  sscHighRiskExtra?: number;
   /** Employer old-age share reduction for under-30 first-time insured (Reg. 45/2024) */
   sscYouthReduction?: { small: number; medium: number };
   /** Income tax is not modelled for this period: enter it manually */

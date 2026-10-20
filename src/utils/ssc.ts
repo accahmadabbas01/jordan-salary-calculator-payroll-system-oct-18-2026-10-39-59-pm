@@ -135,6 +135,16 @@ export function computeSsc(
       }
     }
 
+    if (emp.sscHighRisk) {
+      const extra = rs.sscHighRiskExtra || 0;
+      if (extra > 0) {
+        employerRates.oldAge += extra;
+        notes.push(`High-risk occupation: employer pays an extra ${pct(extra)}.`);
+      } else {
+        notes.push('High-risk occupation extra rate does not exist in this period — not applied.');
+      }
+    }
+
     if (age !== null && emp.gender) {
       const retire = RETIREMENT_AGE[emp.gender];
       if (age >= retire) {
