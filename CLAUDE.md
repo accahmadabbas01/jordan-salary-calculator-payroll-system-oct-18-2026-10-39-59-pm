@@ -32,7 +32,8 @@ payslips, ISTD certificates). Deployed on Vercel. UI text is English with Arabic
 | Income tax engine (exemptions, brackets, one-off pay, national contribution) | `src/utils/incomeTax.ts` (`computeIncomeTax`) + `screens/IncomeTaxCalculatorScreen.tsx` |
 | Maternity leave rules | `src/utils/maternity.ts` + `screens/MaternityLeaveScreen.tsx` |
 | SSC Calculator (port of Jordan_SSC_Calculator.xlsx; import/export with formulas) | `src/utils/sscCalculator.ts` + `screens/SscCalculatorScreen.tsx` |
-| Excel import/export | `src/utils/excel.ts` + `common/ExcelImportExportModal.tsx` |
+| Excel import/export (reading: SheetJS) | `src/utils/excel.ts` + `common/ExcelImportExportModal.tsx` |
+| Employee & salary sheets with one column per item + dropdowns (writing: ExcelJS, lazy-loaded) | `src/utils/excelTemplates.ts` |
 | Smart Import (any sheet/email → monthly inputs) | `src/utils/smartImport.ts` + `common/SmartImportModal.tsx` |
 | PDF export (html2canvas-pro + jsPDF; `password` option = 40-bit RC4) | `src/utils/pdf.ts` |
 | Payslip PDF passwords (pattern or generated, per employee & month) | `src/utils/payslipPassword.ts` + `common/PayslipPasswordPanel.tsx` |

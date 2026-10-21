@@ -74,6 +74,48 @@ function str(v: any): string {
   return v === undefined || v === null ? '' : String(v).trim();
 }
 
+/**
+ * Items from the one-column-per-item layout: "Allowance: Fuel Allowance" = 60 (or "10%"), and
+ * "Other Allowance 1 – Name" / "Other Allowance 1 – Amount". Returns null when the row has none of
+ * these columns (older single-cell format). Keys are already lower-cased by normalizeRow.
+ */
+function columnItems(
+  r: Record<string, any>,
+  kind: 'allowance' | 'deduction'
+): { name: string; method: 'fixed' | 'percent'; value: number }[] | null {
+  const prefix = `${kind}: `;
+  const otherRe = new RegExp(`^other ${kind} (\\d+) [–-] name$`);
+  let found = false;
+  const items: { name: string; method: 'fixed' | 'percent'; value: number }[] = [];
+  const add = (name: string, raw: any) => {
+    const text = str(raw);
+    if (!name || !text) return;
+    const percent = text.endsWith('%');
+    const value = num(percent ? text.slice(0, -1) : raw);
+    if (value > 0) items.push({ name, method: percent ? 'percent' : 'fixed', value });
+  };
+  for (const key of Object.keys(r)) {
+    if (key.startsWith(prefix)) {
+      found = true;
+      add(key.slice(prefix.length).trim(), r[key]);
+      continue;
+    }
+    const m = key.match(otherRe);
+    if (m) {
+      found = true;
+      const amountKey = Object.keys(r).find((k) => new RegExp(`^other ${kind} ${m[1]} [–-] amount$`).test(k));
+      add(str(r[key]), amountKey ? r[amountKey] : '');
+    }
+  }
+  // Header-only columns still mean "this layout" even when every cell is empty
+  return found ? items : null;
+}
+
+/** Same as columnItems, but also detects the layout from the sheet's header row when the row is sparse. */
+function hasItemColumns(headers: string[], kind: 'allowance' | 'deduction') {
+  return headers.some((h) => h.startsWith(`${kind}: `) || new RegExp(`^other ${kind} \\d+ [–-] name$`).test(h));
+}
+
 function coverageLabel(e: Employee): string {
   const c = e.sscExempt ? 'exempt' : e.sscCoverage || 'full';
   return c === 'exempt' ? 'Exempt' : c === 'injury_only' ? 'Work injury only' : 'Full';
@@ -1353,6 +1395,11 @@ export function parseEmployeesImportSheet(
 
   const employees: Employee[] = [];
   const errors: string[] = [];
+  const empHeaders = (XLSX.utils.sheet_to_json<any[]>(wb.Sheets[sheetName], { header: 1 })[0] || []).map((h: any) =>
+    String(h ?? '').trim().toLowerCase()
+  );
+  const itemLayoutA = hasItemColumns(empHeaders, 'allowance');
+  const itemLayoutD = hasItemColumns(empHeaders, 'deduction');
 
   for (let i = 0; i < rawRows.length; i++) {
     const r = normalizeRow(rawRows[i]);
@@ -1375,13 +1422,25 @@ export function parseEmployeesImportSheet(
     const existing = existingEmployees.find((e) => e.companyId === companyId && e.empId === empId);
     const sscWage = num(pick(r, 'ssc insured wage', 'insured wage'), 0) || undefined;
 
-    const allowances = parseAllowances(
-      str(pick(r, 'custom allowances', 'recurring allowances')),
-      company?.allowanceTypes || []
-    );
-    const deductions = parseDeductions(
-      str(pick(r, 'custom deductions', 'recurring deductions')),
-      company?.deductionTypes || []
+    const aTypes = company?.allowanceTypes || [];
+    const dTypes = company?.deductionTypes || [];
+    const findType = <T extends { name: string }>(types: T[], name: string) =>
+      types.find((t) => t.name.toLowerCase() === name.toLowerCase());
+    const allowItems = itemLayoutA ? columnItems(r, 'allowance') || [] : null;
+    const dedItems = itemLayoutD ? columnItems(r, 'deduction') || [] : null;
+    const allowances = allowItems
+      ? allowItems.map((it) => {
+          const t = findType(aTypes, it.name);
+          return { name: t?.name || it.name, method: it.method, value: it.value, taxable: t ? t.taxable : true, ssc: t ? t.ssc : true };
+        })
+      : parseAllowances(str(pick(r, 'custom allowances', 'recurring allowances')), aTypes);
+    const deductions = (
+      dedItems
+        ? dedItems.map((it) => {
+            const t = findType(dTypes, it.name);
+            return { name: t?.name || it.name, method: it.method, value: it.value, preTax: t ? t.preTax : false };
+          })
+        : parseDeductions(str(pick(r, 'custom deductions', 'recurring deductions')), dTypes)
     ).map((d) => ({ name: d.name, method: d.method, value: d.value, preTax: d.preTax }));
 
     const status = str(pick(r, 'status')).toLowerCase().includes('resign') ? 'resigned' : 'active';
@@ -1672,6 +1731,12 @@ export function parseSalaryImportSheet(
   const records: SalaryRecord[] = [];
   const errors: string[] = [];
 
+  const salaryHeaders = (XLSX.utils.sheet_to_json<any[]>(wb.Sheets[sheetName], { header: 1 })[0] || []).map((h: any) =>
+    String(h ?? '').trim().toLowerCase()
+  );
+  const salaryLayoutA = hasItemColumns(salaryHeaders, 'allowance');
+  const salaryLayoutD = hasItemColumns(salaryHeaders, 'deduction');
+
   for (let i = 0; i < rawRows.length; i++) {
     const r = normalizeRow(rawRows[i]);
 
@@ -1710,10 +1775,19 @@ export function parseSalaryImportSheet(
     const hasAllowCol = Object.keys(r).some((k) => k.startsWith('additional allowances'));
     const hasDedCol = Object.keys(r).some((k) => k.startsWith('additional deductions'));
     const basic = amounts.basic;
+    const aTypes = company?.allowanceTypes || [];
+    const dTypes = company?.deductionTypes || [];
+    const typeFor = <T extends { name: string }>(types: T[], name: string) =>
+      types.find((t) => t.name.toLowerCase() === name.toLowerCase());
 
     const earnings: SalaryEarningItem[] = (
-      hasAllowCol
-        ? parseAllowances(str(pick(r, 'additional allowances')), company?.allowanceTypes || [])
+      salaryLayoutA
+        ? (columnItems(r, 'allowance') || []).map((it) => {
+            const t = typeFor(aTypes, it.name);
+            return { ...it, name: t?.name || it.name, taxable: t ? t.taxable : true, ssc: t ? t.ssc : true };
+          })
+        : hasAllowCol
+        ? parseAllowances(str(pick(r, 'additional allowances')), aTypes)
         : emp.allowances || []
     ).map((a) => ({
       name: a.name,
@@ -1723,8 +1797,13 @@ export function parseSalaryImportSheet(
     }));
 
     const deductions: SalaryDeductionItem[] = (
-      hasDedCol
-        ? parseDeductions(str(pick(r, 'additional deductions')), company?.deductionTypes || [])
+      salaryLayoutD
+        ? (columnItems(r, 'deduction') || []).map((it) => {
+            const t = typeFor(dTypes, it.name);
+            return { ...it, name: t?.name || it.name, preTax: t ? t.preTax : false };
+          })
+        : hasDedCol
+        ? parseDeductions(str(pick(r, 'additional deductions')), dTypes)
         : emp.deductions || []
     ).map((d) => ({
       name: d.name,
