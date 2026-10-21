@@ -1206,6 +1206,7 @@ export default function App() {
                 onDeleteRecord={handleDeleteRecord}
                 onEmailPayslip={handleEmailPayslip}
                 onUpdateCompany={handleUpdateCompany}
+                onSaveInputs={handleSaveInputs}
                 onManageTypes={() => {
                   setSettingsTab('types');
                   handleNavigate('company_settings');

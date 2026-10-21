@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { SmartImportModal } from '../common/SmartImportModal';
 import { getPayslipPassword } from '../../utils/payslipPassword';
 import { AddFromTypesMenu, TypeSelect, describeType, findType, typeAmount } from '../common/ItemTypePicker';
 import { CommentsButton } from '../common/Comments';
@@ -40,6 +41,7 @@ import {
   Download,
   Check,
   X,
+  Wand2,
 } from 'lucide-react';
 
 interface SalaryEntryScreenProps {
@@ -58,6 +60,7 @@ interface SalaryEntryScreenProps {
   onEmailPayslip?: (record: SalaryRecord) => void;
   onUpdateCompany?: (company: Company) => void;
   onManageTypes?: () => void;
+  onSaveInputs?: (inputs: MonthlyInput[]) => Promise<void>;
 }
 
 export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
@@ -76,6 +79,7 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
   onEmailPayslip,
   onUpdateCompany,
   onManageTypes,
+  onSaveInputs,
 }) => {
   const currentEmployee = employees.find((e) => e.empId === selectedEmpId) || employees[0];
   const empId = currentEmployee?.empId || '';
@@ -108,6 +112,8 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
 
   const [earnings, setEarnings] = useState<SalaryEarningItem[]>([]);
   const [deductions, setDeductions] = useState<SalaryDeductionItem[]>([]);
+  const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
+  const [smartImportMessage, setSmartImportMessage] = useState<string | null>(null);
   const [autoCalc, setAutoCalc] = useState(true);
   const [claimsFamily, setClaimsFamily] = useState(false);
   const [extraExemption, setExtraExemption] = useState(0);
@@ -374,6 +380,35 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
     }
   }, [autoCalc, calc.ssc, calc.incomeTax]);
 
+  /** Puts Smart Import results for the employee on screen straight into the form. */
+  const applyInputsToForm = (inputs: MonthlyInput[]) => {
+    if (inputs.length === 0) return;
+    let nextAmounts = { ...amounts };
+    let nextEarnings = [...earnings];
+    let nextDeductions = [...deductions];
+    for (const inp of inputs) {
+      if (inp.kind === 'salary' && inp.item in nextAmounts) {
+        nextAmounts = { ...nextAmounts, [inp.item]: inp.amount };
+      } else if (inp.kind === 'allowance') {
+        const idx = nextEarnings.findIndex((e) => e.name.toLowerCase() === inp.item.toLowerCase());
+        const type = company.allowanceTypes.find((t) => t.name.toLowerCase() === inp.item.toLowerCase());
+        if (inp.amount === 0) nextEarnings = nextEarnings.filter((_, i) => i !== idx);
+        else if (idx >= 0) nextEarnings[idx] = { ...nextEarnings[idx], amount: inp.amount };
+        else nextEarnings.push({ name: inp.item, amount: inp.amount, taxable: type ? type.taxable : true, ssc: type ? type.ssc : true });
+      } else if (inp.kind === 'deduction') {
+        const idx = nextDeductions.findIndex((d) => !d.loanId && d.name.toLowerCase() === inp.item.toLowerCase());
+        const type = company.deductionTypes.find((t) => t.name.toLowerCase() === inp.item.toLowerCase());
+        if (inp.amount === 0) nextDeductions = nextDeductions.filter((_, i) => i !== idx);
+        else if (idx >= 0) nextDeductions[idx] = { ...nextDeductions[idx], amount: inp.amount };
+        else nextDeductions.push({ name: inp.item, amount: inp.amount, preTax: type ? type.preTax : false });
+      }
+    }
+    setAmounts(nextAmounts);
+    setEarnings(nextEarnings);
+    setDeductions(nextDeductions);
+    setIsSavedBadge(false);
+  };
+
   // Previous and Next Employee navigation
   const currentIndex = employees.findIndex((e) => e.empId === empId);
   const handlePrevEmployee = () => {
@@ -525,6 +560,18 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
           >
             {isSavedBadge ? 'Saved' : 'New, not saved yet'}
           </span>
+
+          {currentEmployee && userRole !== 'viewer' && (
+            <button
+              type="button"
+              onClick={() => setIsSmartImportOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded text-xs font-semibold hover:bg-violet-700"
+              title="Fill this salary from a pasted email, message or sheet"
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              <span>Smart Import</span>
+            </button>
+          )}
 
           {currentEmployee && (
             <CommentsButton
@@ -1291,6 +1338,35 @@ export const SalaryEntryScreen: React.FC<SalaryEntryScreenProps> = ({
               await onEmailPayslip(rec);
             }
             return true;
+          }}
+        />
+      )}
+      {smartImportMessage && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-xl p-3 rounded-lg shadow-lg border border-violet-200 dark:border-violet-900 bg-violet-50 dark:bg-violet-950 text-violet-900 dark:text-violet-200 text-xs flex items-start gap-3">
+          <span>{smartImportMessage}</span>
+          <button type="button" onClick={() => setSmartImportMessage(null)} className="text-slate-400">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {isSmartImportOpen && currentEmployee && (
+        <SmartImportModal
+          company={company}
+          employees={employees}
+          year={year}
+          month={month}
+          onClose={() => setIsSmartImportOpen(false)}
+          onApply={async (inputs) => {
+            const mine = inputs.filter((i) => i.empId === currentEmployee.empId && i.year === year && i.month === month);
+            const others = inputs.filter((i) => !mine.includes(i));
+            applyInputsToForm(mine);
+            // Inputs for other employees (or months) are kept as monthly inputs for Payroll Run
+            if (onSaveInputs && others.length) await onSaveInputs(others);
+            setSmartImportMessage(
+              `${mine.length ? `Filled ${mine.length} item(s) into ${currentEmployee.name}'s salary — review and press Save.` : `Nothing for ${currentEmployee.name}.`}` +
+                (others.length ? ` ${others.length} item(s) for other employees were saved as monthly inputs.` : '')
+            );
           }}
         />
       )}

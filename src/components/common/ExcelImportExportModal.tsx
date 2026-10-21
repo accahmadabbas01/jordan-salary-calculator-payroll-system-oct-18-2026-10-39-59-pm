@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { employeesWorkbook, salaryWorkbook } from '../../utils/excelTemplates';
 import {
   Company,
   Employee,
@@ -204,16 +205,16 @@ export const ExcelImportExportModal: React.FC<ExcelImportExportModalProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     switch (type) {
       case 'employees':
-        return downloadBytes(generateEmployeeImportTemplate(company), `Employees_Template_${companySlug}.xlsx`);
+        return downloadBytes(await employeesWorkbook(company, [], 'template'), `Employees_Template_${companySlug}.xlsx`);
       case 'loans':
         return downloadBytes(generateLoansImportTemplate(company, employees), `Loans_Template_${companySlug}.xlsx`);
       case 'salaries':
       case 'salary_history':
         return downloadBytes(
-          generateSalaryImportTemplate(company, employees.filter((e) => e.status !== 'resigned'), year, month),
+          await salaryWorkbook(company, employees, null, year, month),
           `Salaries_Template_${companySlug}_${year}_${month}.xlsx`
         );
       case 'monthly_inputs':
@@ -226,11 +227,11 @@ export const ExcelImportExportModal: React.FC<ExcelImportExportModalProps> = ({
     }
   };
 
-  const handleExportData = () => {
+  const handleExportData = async () => {
     let count = 0;
     switch (type) {
       case 'employees':
-        downloadBytes(exportEmployeesSheet(company, employees), `Employees_${companySlug}.xlsx`);
+        downloadBytes(await employeesWorkbook(company, employees, 'export'), `Employees_${companySlug}.xlsx`);
         count = employees.length;
         break;
       case 'loans':
@@ -239,13 +240,22 @@ export const ExcelImportExportModal: React.FC<ExcelImportExportModalProps> = ({
         break;
       case 'salaries':
         downloadBytes(
-          exportSalaryRecordsSheet(company, records, employees, year, month),
+          await salaryWorkbook(
+            company,
+            employees,
+            records.filter((r) => r.companyId === company.id && r.year === year && r.month === month),
+            year,
+            month
+          ),
           `Salaries_${companySlug}_${year}_${month}.xlsx`
         );
         count = records.filter((r) => r.year === year && r.month === month).length;
         break;
       case 'salary_history':
-        downloadBytes(exportSalaryRecordsSheet(company, records, employees), `Salary_History_${companySlug}.xlsx`);
+        downloadBytes(
+          await salaryWorkbook(company, employees, records.filter((r) => r.companyId === company.id), year, month),
+          `Salary_History_${companySlug}.xlsx`
+        );
         count = records.length;
         break;
       case 'monthly_inputs':
