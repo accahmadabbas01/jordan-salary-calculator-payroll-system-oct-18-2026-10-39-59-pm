@@ -39,6 +39,7 @@ payslips, ISTD certificates). Deployed on Vercel. UI text is English with Arabic
 | Payslip PDF passwords (pattern or generated, per employee & month) | `src/utils/payslipPassword.ts` + `common/PayslipPasswordPanel.tsx` |
 | Documents (payslip, QP 177-F3 certificate, clearance, statutory) | `src/components/documents/` |
 | Company allowance/deduction type picker | `src/components/common/ItemTypePicker.tsx` |
+| Light / dark / system theme (class-based `dark:` variant, switch in TopBar, saved per browser) | `src/utils/theme.ts` + `index.css` `@custom-variant dark` |
 | Sample data | `seedSampleCompanies` in `indexedDB.ts`; `src/db/seedFullTest.ts`; `src/utils/testSamples.ts` |
 
 ## Finding code with Graphify

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Dark mode follows the .dark class on <html> (set by src/utils/theme.ts), not only the OS setting */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
@@ -8,6 +11,8 @@
   }
 
   body {
+    /* Solid page colour per theme, so the app's translucent backgrounds never show the browser canvas */
+    @apply bg-white dark:bg-slate-950;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

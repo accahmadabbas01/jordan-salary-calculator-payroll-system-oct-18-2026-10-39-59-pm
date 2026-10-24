@@ -9,7 +9,17 @@ import {
   LogOut,
   KeyRound,
   Menu,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
+import { ThemeMode, useThemeMode } from '../../utils/theme';
+
+const THEME_OPTIONS: { mode: ThemeMode; label: string; Icon: typeof Sun }[] = [
+  { mode: 'light', label: 'Light mode (الوضع الفاتح)', Icon: Sun },
+  { mode: 'system', label: 'Match device setting', Icon: Monitor },
+  { mode: 'dark', label: 'Dark mode (الوضع الداكن)', Icon: Moon },
+];
 
 interface TopBarProps {
   companies: Company[];
@@ -39,6 +49,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleMobileMenu,
 }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [themeMode, setThemeMode] = useThemeMode();
   const currentCompany = companies.find((c) => c.id === selectedCompanyId);
 
   const availableYears = YEAR_OPTIONS;
@@ -114,7 +125,33 @@ export const TopBar: React.FC<TopBarProps> = ({
         </select>
       </div>
 
-      {/* Right: User Menu */}
+      {/* Right: Theme switch & User Menu */}
+      <div className="flex items-center gap-2">
+      <div
+        role="radiogroup"
+        aria-label="Colour theme"
+        className="hidden sm:flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700"
+      >
+        {THEME_OPTIONS.map(({ mode, label, Icon }) => (
+          <button
+            key={mode}
+            type="button"
+            role="radio"
+            aria-checked={themeMode === mode}
+            onClick={() => setThemeMode(mode)}
+            title={label}
+            aria-label={label}
+            className={`p-1.5 rounded-md transition-colors ${
+              themeMode === mode
+                ? 'bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-sm'
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+          </button>
+        ))}
+      </div>
+
       <div className="relative">
         <button
           type="button"
@@ -159,6 +196,25 @@ export const TopBar: React.FC<TopBarProps> = ({
               <span>Change Password</span>
             </button>
 
+            {/* On phones the switch above is hidden: offer it here */}
+            <div className="sm:hidden px-3 py-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1">
+              {THEME_OPTIONS.map(({ mode, label, Icon }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setThemeMode(mode)}
+                  aria-label={label}
+                  className={`flex-1 flex justify-center p-1.5 rounded-md ${
+                    themeMode === mode
+                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                      : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                </button>
+              ))}
+            </div>
+
             <button
               type="button"
               onClick={() => {
@@ -172,6 +228,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             </button>
           </div>
         )}
+      </div>
       </div>
     </header>
   );
